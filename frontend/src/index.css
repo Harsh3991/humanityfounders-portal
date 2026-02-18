@@ -1,0 +1,156 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ═══════════════════════════════════════════
+   DESIGN SYSTEM — Humanity Founders Portal
+   ═══════════════════════════════════════════ */
+:root {
+  /* ─── Brand ─── */
+  --primary: #6651A4;
+  --primary-hover: #5A47A0;
+  --primary-deep: #4C3D8F;
+  --primary-light: #F0EDFA;
+  --primary-lighter: #F7F5FD;
+  --primary-glow: rgba(102, 81, 164, 0.12);
+
+  /* ─── Surfaces  ─── */
+  --bg-body: #F5F6FA;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-input: #F8F9FC;
+  --bg-muted: #F1F2F6;
+  --bg-hover: #EDEEF3;
+
+  /* ─── Text ─── */
+  --text-primary: #1E1E2D;
+  --text-secondary: #555770;
+  --text-muted: #9294A5;
+  --text-on-primary: #FFFFFF;
+
+  /* ─── Borders ─── */
+  --border: #E2E4EB;
+  --border-light: #EEEFF3;
+  --border-focus: var(--primary);
+
+  /* ─── Status — clean & recognizable ─── */
+  --success: #2ECC71;
+  --success-light: #EAFAF1;
+  --success-text: #1B8A4A;
+
+  --error: #E74C5B;
+  --error-light: #FDF0F1;
+  --error-text: #C0364A;
+
+  --warning: #F0A030;
+  --warning-light: #FEF6E9;
+  --warning-text: #B07818;
+
+  --info: #5B8DEF;
+  --info-light: #EEF3FE;
+  --info-text: #3A6BD4;
+
+  /* ─── Shadows ─── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --shadow-purple: 0 4px 14px rgba(102, 81, 164, 0.2);
+
+  /* ─── Radii ─── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* ─── Motion ─── */
+  --transition: all 0.2s ease;
+  --transition-slow: all 0.35s ease;
+}
+
+/* ─── Reset ─── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--bg-body);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+  color: var(--primary);
+  transition: var(--transition);
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  outline: none;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ─── Loading Spinner ─── */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-body);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
