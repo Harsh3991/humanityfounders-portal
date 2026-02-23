@@ -32,12 +32,18 @@ const getEmployeeDashboard = async (userId) => {
     const { start: monthStart, end: monthEnd } = getMonthRange();
     const { start: todayStart, end: todayEnd } = getTodayRange();
 
-    // Run all queries in parallel for performance
-    const [user, todayAttendance, monthlyAttendance, myTasks, myProjects] =
-        await Promise.all([
-            // User info
-            User.findById(userId).select("fullName email role department status"),
+    // Fetch user details first so we know their role
+    const userObj = await User.findById(userId).select("fullName email role department status");
 
+    const projectQuery = { status: "active" };
+    // If regular employee or manager, only show their projects. Admin/HR see all.
+    if (userObj.role !== "admin" && userObj.role !== "hr") {
+        projectQuery.members = userId;
+    }
+
+    // Run remaining queries in parallel for performance
+    const [todayAttendance, monthlyAttendance, myTasks, myProjects] =
+        await Promise.all([
             // Today's attendance record
             Attendance.findOne({
                 user: userId,
@@ -60,14 +66,13 @@ const getEmployeeDashboard = async (userId) => {
                 .limit(10)
                 .lean(),
 
-            // Active projects user is a member of
-            Project.find({
-                members: userId,
-                status: "active",
-            })
+            // Active projects based on role
+            Project.find(projectQuery)
                 .select("name status deadline")
                 .lean(),
         ]);
+
+    const user = userObj;
 
     // Calculate monthly stats
     const daysPresent = monthlyAttendance.filter(

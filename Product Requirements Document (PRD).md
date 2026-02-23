@@ -13,55 +13,55 @@ The goal is to replace fragmented tools with a unified system that strictly enfo
 
 ## 2. Objectives & Value Proposition
 
-- **Centralization:** Consolidate HR and Project Management into one interface.
+- **Centralization:** Consolidate Administration and Project Management into one interface.
 - **Accountability:** Real-time tracking of task deadlines and attendance clock-ins.
-- **Role-Based Security:** Strict data segregation ensuring employees only see what is relevant to them, while Management, HR, and Admins have broader oversight.
+- **Role-Based Security:** Strict data segregation ensuring employees only see what is relevant to them, while Admins have complete oversight.
 - **Efficiency:** Automate the flow of information regarding project status and attendance records.
 
 ## 3. User Roles & Permissions
 
 ### 3.1 Role Definitions
 
-1. **Admin (Super User):** Absolute control over the system, including system configuration and admin management.
-2. **HR (Human Resources):** High-level control for people management, onboarding, and compliance.
-3. **Manager:** Operational control over teams, project assignments, and productivity monitoring.
-4. **Employee:** Restricted access limited to personal dashboard, assigned tasks, and own attendance.
+1. **Admin (Super User):** Absolute control over the system, including employee management, onboarding oversight, project supervision, and system configuration.
+2. **Employee:** Restricted access limited to personal dashboard, assigned tasks, and own attendance.
 
 ### 3.2 Permissions Matrix
 
-| Feature / Action | Employee | Manager | HR | Admin |
-| --- | --- | --- | --- | --- |
-| **Login** | ✅ | ✅ | ✅ | ✅ |
-| **Onboarding (First Time)** | ✅ | ✅ | ✅ | ❌ |
-| **View Own Dashboard** | ✅ | ✅ | ✅ | ✅ |
-| **Clock In / Clock Out** | ✅ | ✅ | ✅ | ✅ |
-| **View Own Attendance** | ✅ | ✅ | ✅ | ✅ |
-| **View Team Attendance** | ❌ | ✅ | ✅ | ✅ |
-| **View/Edit Projects** | Own Projects Only | All | All | All |
-| **Create Tasks/Subtasks** | ✅ | ✅ | ✅ | ✅ |
-| **Assign Tasks to Others** | ✅ | ✅ | ✅ | ✅ |
-| **Add/Delete Employees** | ❌ | ❌ | ✅ | ✅ |
-| **Edit Employee Details** | ❌ | ❌ | ✅ | ✅ |
-| **Remove/Edit Admin Users** | ❌ | ❌ | ❌ | ✅ |
+| Feature / Action | Employee | Admin |
+| --- | --- | --- |
+| **Login** | ✅ | ✅ |
+| **Onboarding (First Time)** | ✅ | N/A |
+| **View Own Dashboard** | ✅ | ✅ |
+| **Clock In / Clock Out** | ✅ | ✅ |
+| **View Own Attendance** | ✅ | ✅ |
+| **View All Employees' Attendance** | ❌ | ✅ |
+| **View/Edit Projects** | Own Projects Only | All |
+| **Create Tasks/Subtasks** | ✅ | ✅ |
+| **Assign Tasks to Others** | ✅ | ✅ |
+| **View Employee Task Load** | ❌ | ✅ |
+| **Add/Delete Employees** | ❌ | ✅ |
+| **Edit Employee Details** | ❌ | ✅ |
+| **Manage Admins** | ❌ | ✅ |
 
 ## 4. User Flow Summary
 
-1. **Login:** User enters credentials provided by HR.
-2. **Validation:**
+1. **Provisioning:** Admin creates a "Pending" account for the employee.
+2. **Login:** User enters credentials provided by Admin.
+3. **Validation:**
     - *First Login:* Redirects to **Onboarding Module** (Mandatory).
     - *Subsequent Logins:* Redirects to **Dashboard**.
-3. **Dashboard:** Personalized view based on Role (Employee vs. Management).
-4. **Navigation:** Access to specific tabs (Projects, Attendance, People) based on permissions.
+4. **Dashboard:** Personalized view based on Role (Employee vs. Admin).
+5. **Navigation:** Access to specific tabs (Projects, Attendance, People, Task Oversight) based on permissions.
 
-## 5. Detailed Feature Specifications
+## 5. Functional Requirements (By Module)
 
-### 5.1 Authentication & Onboarding
+### 5.1 Module: Authentication & Onboarding
 
 **Entry Point:** All users must authenticate here.
 
 - **Secure Login:** Email/Password authentication.
-- **Provisioning (HR/Admin Only):**
-    - HR creates an account using **Full Name**, **Gmail Address**, **Department**, **Role**, and **Password**.
+- **Provisioning (Admin Only):**
+    - Admin inputs: **Full Name**, **Gmail Address**, **Department**, **Role**, and **Temporary Password**.
     - Status is set to "Pending" until onboarding is complete.
 - **Onboarding Wizard (Mandatory New User Flow):**
     - **Trigger:** Activates immediately when a "Pending" user logs in. Navigation is locked.
@@ -73,18 +73,17 @@ The goal is to replace fragmented tools with a unified system that strictly enfo
         - Action: Checkbox ("I Agree") + Digital Signature (Type Full Name).
     - **Completion:** Status updates to "Active"; User redirected to Dashboard.
 
-### 5.2 The Dashboard (Home Tab)
+### 5.2 Module: Dashboard (Home Tab)
 
-The central hub is customized by role.
+The central hub customized by role.
 
 ### **A. Employee Dashboard View**
 
 - **Header:** "Welcome, [Name] - [Department]"
 - **Attendance Widget:**
-    - **Clock In(”start”):** Only enabled if the previous day was closed properly.
-    - **Clock Out:** Opens mandatory **Daily Report** pop-up (Text area for "What was accomplished?").
+    - **Clock In:** Enabled only if previous day is closed.
+    - **Clock Out:** Opens mandatory **Daily Report** pop-up.
     - **Timer:** Real-time session duration.
-    - Away: To stop timer when employee is taking a brake
 - **My Tasks (Priority Card):**
     - **Filter:** Tasks assigned to the user across **all** active projects.
     - **Sort:** Strict chronological order by Due Date (Overdue/Today at top in Red).
@@ -92,29 +91,48 @@ The central hub is customized by role.
 - **Monthly Stats:** Summary of Days Present vs. Absences/Leaves.
 - **Active Projects:** List of currently assigned projects.
 
-### **B. Management Dashboard View (Manager/HR/Admin)**
+### **B. Admin Dashboard View**
 
-- **Personal Widgets:** Clock In/Out, Daily Report, Personal Tasks (same as Employee).
+- **Personal Widgets:** Clock In/Out, Daily Report, Personal Tasks.
 - **Team Overview:** Real-time counter of employees currently "On Duty".
-- **Resource Availability Card (New):**
+- **Resource Availability Card:**
     - **Content:** List of employees with **Zero** active tasks.
     - **Action:** "Assign Task" button (Shortcuts to Project Tab).
 - **Pending Requests:** Leave requests or administrative alerts.
 
-### 5.3 Project Management Tab
+### 5.3 Module: Project Management
 
 A hierarchical task system (Project > Task > Subtask).
 
 - **Project Structure:**
     - **Multi-Project Support:** Employees can belong to multiple projects simultaneously.
-    - **Visibility:** Employees see only their projects; Managers/HR/Admin see all.
+    - **Visibility:** Employees see only their projects; Admins see **all** projects.
 - **Task Management:**
     - **Create Task:** Available to all users.
     - **Fields:** Name, Assignee (Searchable User List), Deadline, Priority (Low/Med/High), Description.
     - **Sub-Tasks:** Expandable items under a parent task with independent completion states.
 - **Workflow:** Status changes move from *To Do* -> *In Progress* -> *Review* -> *Done*.
 
-### 5.4 Attendance Management Tab
+### 5.4 Module: Admin Task Oversight
+
+**Access:** Restricted to Admin ONLY.
+
+A dedicated interface to monitor individual employee workloads without navigating through projects.
+
+- **Sidebar (Employee Directory):**
+    - **Search:** Search bar to find employees by Name.
+    - **Filter:** Dropdown to filter list by **Department**.
+    - **Selection:** Clicking an employee name loads their task data in the main view.
+- **Main Content Area (Task Breakdown):**
+    - **Display Logic:** Shows all active tasks assigned to the selected employee across all projects.
+    - **Categorization:** Tasks are grouped by **Project Name** (e.g., "Website Redesign" group, "Marketing Campaign" group).
+    - **Task Details:** Each task item displays:
+        - Task Name.
+        - Due Date (Color-coded for urgency).
+        - Status (To Do/In Progress/Done).
+        - Priority.
+
+### 5.5 Module: Attendance Management
 
 ### **A. Employee View (Personal)**
 
@@ -123,8 +141,9 @@ A hierarchical task system (Project > Task > Subtask).
     - **Color Coding:** Green (Present), Red (Absent).
 - **Report Access:** Clicking a **Green** date opens a pop-up showing that day's submitted **Daily Report**.
 - **History Log:** List view of timestamps below the calendar.
+- **Clock-In Lockout:** Prevent clock-in if previous day's report is missing.
 
-### **B. Management View (Supervisory)**
+### **B. Admin View (Supervisory)**
 
 - **Layout:** Split-screen interface.
 - **Sidebar (Employee Directory):**
@@ -133,11 +152,11 @@ A hierarchical task system (Project > Task > Subtask).
     - Select an employee to view their specific calendar.
 - **Main View (Individual Calendar):**
     - Displays the selected employee's attendance grid.
-    - **Action:** HR/Admin can click dates to view Daily Reports or manually correct attendance status.
+    - **Action:** Admin can click dates to view Daily Reports or manually correct attendance status.
 
-### 5.5 People & Directory Tab
+### 5.6 Module: People & Directory
 
-**Access:** Restricted to HR & Admin.
+**Access:** Restricted to Admin ONLY.
 
 - **Employee Database:** Searchable list of all staff.
 - **Profile Management:**
@@ -157,9 +176,9 @@ A hierarchical task system (Project > Task > Subtask).
 3. **Audit Trails:** (Admin Only) Logs for employee creation, deletion, and attendance manual overrides.
 4. **Performance:** Dashboard load time < 2 seconds.
 
-## 7. Tech Stack Recommendations
+## 7. Feedback and new Features to Add
 
-- **Frontend:** React.js (Component-based architecture for Cards/Widgets).
-- **Backend:** Node.js/Express.
-- **Database:** PostgreSQL (Relational integrity for Attendance/Users).
-- **Auth:** Firebase Authentication or Custom JWT.
+1. In Admin dashboard a card to show total employee present today
+2. Multi tab layout in the employee detail page first for all personal details and second tab “Work Log” for tasks and projects and attendance
+3. Store the attendance and daily update for each employee in a Google sheet
+4. Send email for the Task uncompleted by the due date

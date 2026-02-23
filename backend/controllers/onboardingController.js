@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const { USER_STATUS } = require("../utils/constants");
+const { encrypt, encryptBuffer, decrypt } = require("../utils/encryptData");
 
 /**
  * POST /api/onboarding/step1
@@ -34,17 +35,17 @@ const submitStep1 = async (req, res, next) => {
             return res.status(400).json({ success: false, message: "IFSC code is required" });
         }
 
-        // Update financial info
+        // Update financial info (Encrypt sensitive fields)
         user.onboarding.bankName = bankName.trim();
-        user.onboarding.accountNumber = accountNumber.trim();
+        user.onboarding.accountNumber = encrypt(accountNumber.trim());
         user.onboarding.ifscCode = ifscCode.trim().toUpperCase();
 
-        // Handle file uploads (Aadhaar and PAN)
+        // Handle file uploads (Aadhaar and PAN) - Encrypt Buffers
         if (req.files) {
             if (req.files.aadhaarCard && req.files.aadhaarCard[0]) {
                 const aadhaar = req.files.aadhaarCard[0];
                 user.onboarding.aadhaarCard = {
-                    data: aadhaar.buffer,
+                    data: encryptBuffer(aadhaar.buffer),
                     contentType: aadhaar.mimetype,
                     fileName: aadhaar.originalname,
                 };
@@ -53,7 +54,7 @@ const submitStep1 = async (req, res, next) => {
             if (req.files.panCard && req.files.panCard[0]) {
                 const pan = req.files.panCard[0];
                 user.onboarding.panCard = {
-                    data: pan.buffer,
+                    data: encryptBuffer(pan.buffer),
                     contentType: pan.mimetype,
                     fileName: pan.originalname,
                 };
@@ -134,11 +135,21 @@ const submitStep2 = async (req, res, next) => {
 
         await user.save({ validateBeforeSave: false });
 
+        // Decrypt account number for the response
+        const userData = user.toJSON();
+        if (userData.onboarding && userData.onboarding.accountNumber) {
+            try {
+                userData.onboarding.accountNumber = decrypt(userData.onboarding.accountNumber);
+            } catch (err) {
+                console.error("Decryption failed in onboarding step 2");
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: "Onboarding complete! Welcome aboard 🎉",
             data: {
-                user: user.toJSON(),
+                user: userData,
             },
         });
     } catch (error) {

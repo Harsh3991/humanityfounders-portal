@@ -1,6 +1,23 @@
 const User = require("../models/User");
 const { generateAccessToken, generateRefreshToken } = require("../utils/generateToken");
 const { CREATION_PERMISSIONS, USER_STATUS, ROLES } = require("../utils/constants");
+const { decrypt } = require("../utils/encryptData");
+const { sendWelcomeEmail } = require("../utils/emailService");
+
+/**
+ * Helper to decrypt sensitive fields for authorized viewing
+ */
+const getDecryptedUser = (user) => {
+    const userData = user.toJSON();
+    if (userData.onboarding && userData.onboarding.accountNumber) {
+        try {
+            userData.onboarding.accountNumber = decrypt(userData.onboarding.accountNumber);
+        } catch (err) {
+            console.error("Decryption failed for user:", user._id);
+        }
+    }
+    return userData;
+};
 
 /**
  * Login user — validate credentials, generate tokens
@@ -43,7 +60,7 @@ const loginUser = async (email, password) => {
     return {
         accessToken,
         refreshToken,
-        user: user.toJSON(),
+        user: getDecryptedUser(user),
     };
 };
 
@@ -82,6 +99,13 @@ const registerUser = async (creatorUser, userData) => {
         createdBy: creatorUser._id,
     });
 
+    // Send email notification non-blocking (doesn't fail creation if email fails)
+    try {
+        await sendWelcomeEmail(email, fullName, password);
+    } catch (err) {
+        console.error("Failed to send welcome email to", email, err);
+    }
+
     return newUser.toJSON();
 };
 
@@ -97,7 +121,7 @@ const getCurrentUser = async (userId) => {
         throw error;
     }
 
-    return user.toJSON();
+    return getDecryptedUser(user);
 };
 
 module.exports = {
