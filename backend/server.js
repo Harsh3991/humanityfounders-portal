@@ -22,7 +22,11 @@ app.use(morgan("dev")); // Request logging
 app.use(express.json({ limit: "10mb" })); // Parse JSON (increased limit for document uploads)
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Health Check Route ───
+// ─── Health Check & Root Routes ───
+app.get("/", (req, res) => {
+    res.redirect("/api/health");
+});
+
 app.get("/api/health", (req, res) => {
     res.status(200).json({
         success: true,
@@ -56,16 +60,17 @@ app.use(errorHandler);
 // ─── Start Server ───
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-    // Only listen if not running in a serverless (like Vercel) environment
-    if (process.env.NODE_ENV !== "production") {
-        app.listen(PORT, () => {
-            console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-            console.log(`📡 Environment: ${process.env.NODE_ENV}`);
-            console.log(`🔗 Health check: http://localhost:${PORT}/api/health\n`);
-        });
-    }
-});
+// Connect to MongoDB immediately at boot up
+connectDB();
+
+// Only listen if not running in a serverless (like Vercel) environment
+if (process.env.NODE_ENV !== "production") {
+    app.listen(PORT, () => {
+        console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📡 Environment: ${process.env.NODE_ENV}`);
+        console.log(`🔗 Health check: http://localhost:${PORT}/api/health\n`);
+    });
+}
 
 // Export the Express API for Vercel
 module.exports = app;
