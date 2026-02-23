@@ -1,4 +1,5 @@
 const Attendance = require("../models/Attendance");
+const User = require("../models/User");
 
 /**
  * Helper: get today's date range
@@ -387,6 +388,178 @@ const getHistory = async (req, res, next) => {
     }
 };
 
+// ═══════════════════════════════════════════════
+// GET /api/attendance/admin/status
+// Get current status of all users (for Admin Dashboard/Directory)
+// ═══════════════════════════════════════════════
+const getAllUsersStatus = async (req, res, next) => {
+    try {
+        const { start } = getTodayRange();
+
+        // 1. Get all active users
+        console.log("Fetching users for directory...");
+        const users = await User.find({ status: { $ne: "inactive" } })
+            .select("fullName email role department status avatar")
+            .lean();
+        console.log(`Found ${users.length} users`);
+
+        // 2. Get all attendance records for today OR active sessions from yesterday
+        const activeRecords = await Attendance.find({
+            $or: [
+                { date: start },
+                { status: { $in: ["clocked-in", "away"] } }
+            ]
+        }).lean();
+
+        // 3. Map status to users
+        const userStatusList = users.map((user) => {
+            const record = activeRecords.find(r =>
+                String(r.user) === String(user._id) &&
+                ["clocked-in", "away"].includes(r.status)
+            ) || activeRecords.find(r =>
+                String(r.user) === String(user._id) &&
+                new Date(r.date).getTime() === start.getTime()
+            );
+
+            return {
+                _id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                role: user.role,
+                department: user.department,
+                status: record ? record.status : "absent",
+                clockIn: record ? record.clockIn : null,
+                clockOut: record ? record.clockOut : null,
+                activeSeconds: record ? record.activeSeconds : 0,
+                lastActiveAt: record ? record.lastActiveAt : null
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            count: userStatusList.length,
+            data: userStatusList,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ═══════════════════════════════════════════════
+// GET /api/attendance/admin/:userId/history
+// Get monthly history for a specific user (Admin Access)
+// ═══════════════════════════════════════════════
+const getUserAttendanceHistory = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const now = new Date();
+        const month = parseInt(req.query.month) || now.getMonth() + 1;
+        const year = parseInt(req.query.year) || now.getFullYear();
+
+        const start = new Date(year, month - 1, 1);
+        const end = new Date(year, month, 0, 23, 59, 59, 999);
+
+        // Verify user exists
+        const user = await User.findById(userId).select("fullName email");
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const records = await Attendance.find({
+            user: userId,
+            date: { $gte: start, $lte: end },
+        })
+            .select("date status clockIn clockOut activeSeconds dailyReport")
+            .sort({ date: 1 })
+            .lean();
+
+        const daysPresent = records.filter(
+            (r) => ["clocked-in", "clocked-out", "away"].includes(r.status)
+        ).length;
+
+        const totalActiveSeconds = records.reduce(
+            (sum, r) => sum + (r.activeSeconds || 0),
+            0
+        );
+
+        res.status(200).json({
+            success: true,
+            data: {
+                user: {
+                    _id: user._id,
+                    fullName: user.fullName,
+                    email: user.email
+                },
+                month,
+                year,
+                records,
+                stats: {
+                    daysPresent,
+                    totalWorkingHours: Math.round((totalActiveSeconds / 3600) * 10) / 10,
+                },
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ═══════════════════════════════════════════════
+// POST /api/attendance/admin/:userId/override
+// Override an attendance day to present or absent manually
+// ═══════════════════════════════════════════════
+const adminOverride = async (req, res, next) => {
+    try {
+        const { userId } = req.params;
+        const { date, status } = req.body; // status = 'present' or 'absent', date = YYYY-MM-DD
+
+        const [yyyy, mm, dd] = date.split('-');
+        const start = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+
+        let record = await Attendance.findOne({ user: userId, date: start });
+
+        let activeSeconds = 0;
+        if (status === 'present') {
+            // Assume 8 hours manual override mapping
+            activeSeconds = 28800;
+        }
+
+        if (!record) {
+            record = new Attendance({
+                user: userId,
+                date: start,
+                status: status === 'present' ? 'clocked-out' : 'absent',
+                activeSeconds,
+                clockIn: status === 'present' ? start : null,
+                clockOut: status === 'present' ? new Date(start.getTime() + activeSeconds * 1000) : null,
+                dailyReport: "Admin overridden."
+            });
+        } else {
+            record.status = status === 'present' ? 'clocked-out' : 'absent';
+            record.activeSeconds = activeSeconds;
+            if (status === 'absent') {
+                record.lastActiveAt = null;
+                record.clockIn = null;
+                record.clockOut = null;
+                record.dailyReport = "Admin marked absent.";
+            } else {
+                if (!record.clockIn) record.clockIn = start;
+                record.clockOut = new Date(start.getTime() + activeSeconds * 1000);
+                record.dailyReport = "Admin overridden.";
+            }
+        }
+
+        await record.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Attendance marked as ${status}.`
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     clockIn,
     goAway,
@@ -394,4 +567,7 @@ module.exports = {
     clockOut,
     getToday,
     getHistory,
+    getAllUsersStatus,
+    getUserAttendanceHistory,
+    adminOverride,
 };

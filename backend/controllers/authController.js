@@ -1,4 +1,5 @@
 const authService = require("../services/authService");
+const { logAction } = require("./auditController");
 
 /**
  * POST /api/auth/login
@@ -30,6 +31,15 @@ const login = async (req, res, next) => {
 const register = async (req, res, next) => {
     try {
         const newUser = await authService.registerUser(req.user, req.body);
+
+        // Audit Log
+        await logAction({
+            action: "CREATE_EMPLOYEE",
+            performedBy: req.user._id,
+            targetUserId: newUser._id,
+            targetUser: newUser.email,
+            details: `Created user ${newUser.fullName} with role ${newUser.role}`
+        });
 
         res.status(201).json({
             success: true,
