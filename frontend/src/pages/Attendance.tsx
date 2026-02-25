@@ -185,7 +185,6 @@ export default function Attendance() {
     // Matte black global background container wrapper
     <div
       className="min-h-full bg-black -m-6 p-4 md:p-6 lg:p-8 font-sans text-gray-200"
-      style={{ zoom: isAdmin ? 0.9 : 1 }}
     >
       <div className="mx-auto flex flex-col lg:flex-row gap-6 lg:gap-8 w-full max-w-[1500px]">
 
