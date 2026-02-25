@@ -83,36 +83,44 @@ export default function People() {
       setOverviewTab('personal');
       setLoadingProfile(true);
 
-      const res = await axiosInstance.get(`/users/${id}`);
-      const u = res.data.data;
-      const emp: Employee = {
-        id: u._id,
-        name: u.fullName,
-        role: u.role,
-        department: u.department || 'Unassigned',
-        email: u.email,
-        status: u.status,
-        phone: u.phone || '',
-        bank: u.onboarding?.bankName || '',
-        accountNo: u.onboarding?.accountNumber || '',
-        ifscCode: u.onboarding?.ifscCode || '',
-        startDate: u.startDate ? u.startDate.split('T')[0] : '',
-        onboarding: u.onboarding || {}
-      };
-      setSelected(emp);
-      setEditForm(emp);
+      // Parallelize fetches to avoid waterfall delay
+      const [uRes, tasksRes, attRes] = await Promise.all([
+        axiosInstance.get(`/users/${id}`).catch(() => null),
+        axiosInstance.get(`/tasks/user/${id}`).catch(() => null),
+        axiosInstance.get(`/attendance/admin/${id}/history`).catch(() => null)
+      ]);
 
-      // Fetch dynamic dashboard data
-      try {
-        const tasksRes = await axiosInstance.get(`/tasks/user/${id}`);
-        // Extract flat tasks and also infer assigned projects
+      if (uRes?.data?.data) {
+        const u = uRes.data.data;
+        const emp: Employee = {
+          id: u._id,
+          name: u.fullName,
+          role: u.role,
+          department: u.department || 'Unassigned',
+          email: u.email,
+          status: u.status,
+          phone: u.phone || '',
+          bank: u.onboarding?.bankName || '',
+          accountNo: u.onboarding?.accountNumber || '',
+          ifscCode: u.onboarding?.ifscCode || '',
+          startDate: u.startDate ? u.startDate.split('T')[0] : '',
+          onboarding: u.onboarding || {}
+        };
+        setSelected(emp);
+        setEditForm(emp);
+      }
+
+      if (tasksRes?.data?.data) {
         setProfileTasks(tasksRes.data.data.flatMap((g: any) => g.tasks) || []);
-      } catch (e) { setProfileTasks([]); }
+      } else {
+        setProfileTasks([]);
+      }
 
-      try {
-        const attRes = await axiosInstance.get(`/attendance/admin/${id}/history`);
+      if (attRes?.data?.data?.stats) {
         setProfileAttendance(attRes.data.data.stats);
-      } catch (e) { setProfileAttendance(null); }
+      } else {
+        setProfileAttendance(null);
+      }
 
     } catch (err) {
       console.error("Error fetching employee details", err);

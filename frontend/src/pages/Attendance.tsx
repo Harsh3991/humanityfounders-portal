@@ -45,6 +45,7 @@ export default function Attendance() {
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [history, setHistory] = useState<AttendanceEntry[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const year = currentDate.getFullYear();
@@ -78,6 +79,7 @@ export default function Attendance() {
   // 2. Fetch History
   const fetchHistory = useCallback(async () => {
     try {
+      setIsLoadingHistory(true);
       let res;
       if (isAdmin) {
         if (!selectedEmployeeId) return;
@@ -109,6 +111,8 @@ export default function Attendance() {
     } catch (err) {
       console.error("Failed to fetch history", err);
       setHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
     }
   }, [isAdmin, selectedEmployeeId]);
 
@@ -265,7 +269,12 @@ export default function Attendance() {
                 ))}
 
                 {/* Day Cards */}
-                {calendarDays.map((day, i) => {
+                {isLoadingHistory ? (
+                  <div className="col-span-7 py-16 flex flex-col items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-yellow-500 mb-4" />
+                    <p className="text-zinc-500 text-xs font-semibold uppercase tracking-widest">Loading Records...</p>
+                  </div>
+                ) : calendarDays.map((day, i) => {
                   if (day === null) return <div key={`empty-${i}`} />;
 
                   const date = new Date(year, month, day);

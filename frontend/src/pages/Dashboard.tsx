@@ -67,8 +67,17 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const todayRes = await axiosInstance.get('/attendance/today');
-        if (todayRes.data.success) {
+        const promises = [
+          axiosInstance.get('/attendance/today').catch(() => null),
+          axiosInstance.get('/projects').catch(() => null),
+          axiosInstance.get('/tasks/my-tasks').catch(() => null),
+          axiosInstance.get('/attendance/history').catch(() => null),
+          user?.role === 'admin' ? axiosInstance.get('/attendance/admin/status').catch(() => null) : Promise.resolve(null)
+        ];
+
+        const [todayRes, projRes, taskRes, histRes, statusRes] = await Promise.all(promises);
+
+        if (todayRes?.data?.success) {
           const d = todayRes.data.data;
           const s: TimeSession = {
             status: d.status,
@@ -79,21 +88,21 @@ export default function Dashboard() {
           setDisplayTime(d.activeSeconds || 0);
         }
 
-        const projRes = await axiosInstance.get('/projects');
-        setProjects(projRes.data.data.map((p: any) => p.name));
+        if (projRes?.data?.success) {
+          setProjects(projRes.data.data.map((p: any) => p.name));
+        }
 
-        const taskRes = await axiosInstance.get('/tasks/my-tasks');
-        setTasks(taskRes.data.data.map((t: any) => ({
-          id: t._id,
-          name: t.name,
-          project: t.project?.name || 'Unassigned',
-          due: t.dueDate ? t.dueDate.split('T')[0] : 'No Date',
-          overdue: t.dueDate && new Date(t.dueDate) < new Date()
-        })));
+        if (taskRes?.data?.success) {
+          setTasks(taskRes.data.data.map((t: any) => ({
+            id: t._id,
+            name: t.name,
+            project: t.project?.name || 'Unassigned',
+            due: t.dueDate ? t.dueDate.split('T')[0] : 'No Date',
+            overdue: t.dueDate && new Date(t.dueDate) < new Date()
+          })));
+        }
 
-        const histRes = await axiosInstance.get('/attendance/history');
         const dataArray = histRes?.data?.data?.records;
-
         if (histRes?.data?.success && Array.isArray(dataArray)) {
           const formattedHistory = dataArray.map((h: any) => ({
             date: new Date(h.date).toISOString().slice(0, 10),
@@ -106,16 +115,9 @@ export default function Dashboard() {
           setHistory(formattedHistory);
         }
 
-        if (user?.role === 'admin') {
-          try {
-            const statusRes = await axiosInstance.get('/attendance/admin/status');
-            if (statusRes.data.success) {
-              const presentCount = statusRes.data.data.filter((u: any) => u.status !== 'absent').length;
-              setTotalPresent(presentCount);
-            }
-          } catch (e) {
-            console.error("Failed to load admin stats", e);
-          }
+        if (statusRes?.data?.success) {
+          const presentCount = statusRes.data.data.filter((u: any) => u.status !== 'absent').length;
+          setTotalPresent(presentCount);
         }
       } catch (err) {
         console.error("Dashboard fetch error", err);

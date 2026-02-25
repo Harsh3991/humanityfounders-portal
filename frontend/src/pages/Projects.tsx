@@ -425,22 +425,21 @@ export default function Projects() {
       const res = await axiosInstance.get('/projects');
       const projectsData = res.data.data;
 
-      const projectsWithTasks = await Promise.all(projectsData.map(async (p: any, index: number) => {
-        const taskRes = await axiosInstance.get(`/tasks/project/${p._id}?topLevel=false`);
-        const tasksData = taskRes.data.data;
-        const roots = buildTaskTree(tasksData);
+      let basicSelectedProjectId = selectedProjectId;
+      if (projectsData.length > 0 && !basicSelectedProjectId) {
+        basicSelectedProjectId = projectsData[0]._id;
+      }
 
-        return {
-          id: p._id,
-          name: p.name,
-          color: projectColors[index % projectColors.length],
-          tasks: roots
-        };
+      const basicProjects = projectsData.map((p: any, index: number) => ({
+        id: p._id,
+        name: p.name,
+        color: projectColors[index % projectColors.length],
+        tasks: []
       }));
-      setProjects(projectsWithTasks);
+      setProjects(basicProjects);
 
-      if (projectsWithTasks.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projectsWithTasks[0].id);
+      if (basicSelectedProjectId) {
+        setSelectedProjectId(basicSelectedProjectId);
       }
     } catch (e) {
       console.error("Failed to load projects", e);
@@ -453,17 +452,109 @@ export default function Projects() {
     fetchProjects();
   }, []);
 
+  // Fetch tasks when project is selected
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [hasFetchedTasks, setHasFetchedTasks] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    if (hasFetchedTasks[selectedProjectId]) return; // Skip fetch if cached
+
+    let didCancel = false;
+    const fetchSelectedTasks = async () => {
+      setTasksLoading(true);
+      try {
+        const taskRes = await axiosInstance.get(`/tasks/project/${selectedProjectId}?topLevel=false`);
+        if (didCancel) return;
+        const tasksData = taskRes.data.data;
+        const roots = buildTaskTree(tasksData);
+        setProjects(prev => prev.map(p => p.id === selectedProjectId ? { ...p, tasks: roots } : p));
+        setHasFetchedTasks(prev => ({ ...prev, [selectedProjectId]: true }));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!didCancel) setTasksLoading(false);
+      }
+    };
+    fetchSelectedTasks();
+    return () => { didCancel = true; };
+  }, [selectedProjectId, hasFetchedTasks]);
+
+  const updateLocalTask = (taskId: string, updates: Partial<Task>) => {
+    setProjects(prevProjects => {
+      const newProjects = [...prevProjects];
+      const updateTree = (tasks: Task[]): boolean => {
+        for (let i = 0; i < tasks.length; i++) {
+          if (tasks[i].id === taskId) {
+            tasks[i] = { ...tasks[i], ...updates };
+            return true;
+          }
+          if (tasks[i].subtasks && tasks[i].subtasks.length > 0) {
+            if (updateTree(tasks[i].subtasks)) return true;
+          }
+        }
+        return false;
+      };
+
+      for (const p of newProjects) {
+        const cpTasks = JSON.parse(JSON.stringify(p.tasks));
+        if (updateTree(cpTasks)) {
+          p.tasks = cpTasks;
+          break;
+        }
+      }
+      return newProjects;
+    });
+  };
+
   const handleAddTask = async (projectId: string, parentId: string | null, name: string) => {
     try {
-      await axiosInstance.post('/tasks', {
+      const res = await axiosInstance.post('/tasks', {
         name: name,
         project: projectId,
         parentTask: parentId,
         status: 'todo',
         priority: 'none',
       });
+      const newTask = res.data.data;
+      const formattedSubtask: Task = {
+        id: newTask._id,
+        name: newTask.name,
+        assignee: newTask.assignee?.fullName || null,
+        status: 'todo',
+        priority: 'none',
+        dueDate: null,
+        subtasks: []
+      };
+
+      setProjects(prev => {
+        const newProjects = [...prev];
+        const proj = newProjects.find(p => p.id === projectId);
+        if (!proj) return prev;
+
+        const cpTasks = JSON.parse(JSON.stringify(proj.tasks));
+
+        if (!parentId) {
+          cpTasks.push(formattedSubtask);
+        } else {
+          const addToParent = (tasks: Task[]) => {
+            for (let i = 0; i < tasks.length; i++) {
+              if (tasks[i].id === parentId) {
+                tasks[i].subtasks.push(formattedSubtask);
+                return true;
+              }
+              if (tasks[i].subtasks && addToParent(tasks[i].subtasks)) return true;
+            }
+            return false;
+          };
+          addToParent(cpTasks);
+        }
+        proj.tasks = cpTasks;
+        return newProjects;
+      });
+    } catch (e) {
       fetchProjects();
-    } catch (e) { }
+    }
   };
 
   const handleCreateProject = async () => {
@@ -482,38 +573,61 @@ export default function Projects() {
 
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm("Are you sure you want to delete this task? Associated subtasks will also be deleted.")) return;
+    setProjects(prev => {
+      const newProjects = [...prev];
+      const removeTask = (tasks: Task[]) => {
+        for (let i = 0; i < tasks.length; i++) {
+          if (tasks[i].id === taskId) {
+            tasks.splice(i, 1);
+            return true;
+          }
+          if (tasks[i].subtasks && removeTask(tasks[i].subtasks)) return true;
+        }
+        return false;
+      };
+      for (const p of newProjects) {
+        const cpTasks = JSON.parse(JSON.stringify(p.tasks));
+        if (removeTask(cpTasks)) {
+          p.tasks = cpTasks;
+          break;
+        }
+      }
+      return newProjects;
+    });
     try {
       await axiosInstance.delete(`/tasks/${taskId}`);
+    } catch (e) {
       fetchProjects();
-    } catch (e) { }
+    }
   };
 
   const handleAssignTask = async (taskId: string, userId: string) => {
+    const employee = employees.find(e => e.id === userId);
+    updateLocalTask(taskId, { assignee: employee ? employee.name : null });
     try {
       await axiosInstance.put(`/tasks/${taskId}`, { assignee: userId });
-      fetchProjects();
-    } catch (e) { }
+    } catch (e) { fetchProjects(); }
   };
 
   const handleChangeStatus = async (taskId: string, status: string) => {
+    updateLocalTask(taskId, { status });
     try {
       await axiosInstance.put(`/tasks/${taskId}`, { status });
-      fetchProjects();
-    } catch (e) { }
+    } catch (e) { fetchProjects(); }
   };
 
   const handleChangePriority = async (taskId: string, priority: string) => {
+    updateLocalTask(taskId, { priority });
     try {
       await axiosInstance.put(`/tasks/${taskId}`, { priority });
-      fetchProjects();
-    } catch (e) { }
+    } catch (e) { fetchProjects(); }
   };
 
   const handleChangeDueDate = async (taskId: string, dueDate: string | null) => {
+    updateLocalTask(taskId, { dueDate });
     try {
       await axiosInstance.put(`/tasks/${taskId}`, { dueDate });
-      fetchProjects();
-    } catch (e) { }
+    } catch (e) { fetchProjects(); }
   };
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
@@ -587,8 +701,13 @@ export default function Projects() {
                 </div>
 
                 {/* List Rows */}
-                <div className="flex flex-col">
-                  {selectedProject.tasks.length === 0 && !isAddingRootTask ? (
+                <div className="flex flex-col relative min-h-[200px]">
+                  {tasksLoading ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#18181b]/80 z-10 backdrop-blur-sm">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
+                      <span className="text-xs text-zinc-400 tracking-widest uppercase mt-4">Loading tasks...</span>
+                    </div>
+                  ) : selectedProject.tasks.length === 0 && !isAddingRootTask ? (
                     <div className="p-16 text-center flex flex-col items-center">
                       <FolderOpen className="w-12 h-12 text-zinc-700 mb-4" />
                       <p className="text-zinc-400 text-sm font-medium">No tasks in this project yet.</p>
