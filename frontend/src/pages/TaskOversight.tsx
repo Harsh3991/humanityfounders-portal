@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Search, ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import axiosInstance from '../lib/axiosInstance';
 
 interface EmployeeItem {
@@ -41,6 +41,7 @@ export default function TaskOversight() {
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('All');
   const [loading, setLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(false);
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -65,6 +66,7 @@ export default function TaskOversight() {
   useEffect(() => {
     const fetchTasks = async () => {
       if (!selectedId) return;
+      setTasksLoading(true);
       try {
         const res = await axiosInstance.get(`/tasks/user/${selectedId}`);
         const allTasks = res.data.data.flatMap((group: any) => group.tasks);
@@ -80,6 +82,8 @@ export default function TaskOversight() {
         setTasks(userTasks);
       } catch (err) {
         setTasks([]);
+      } finally {
+        setTasksLoading(false);
       }
     };
     fetchTasks();
@@ -177,8 +181,13 @@ export default function TaskOversight() {
             </div>
 
             {/* Tasks Grid */}
-            <div className="flex-1 overflow-y-auto p-8 bg-[#0a0a0a]">
-              {tasks.length === 0 ? (
+            <div className="flex-1 overflow-y-auto p-8 bg-[#0a0a0a] relative">
+              {tasksLoading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a]/80 z-10 backdrop-blur-sm">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
+                  <span className="text-xs text-zinc-400 tracking-widest uppercase mt-4">Pulling Tasks...</span>
+                </div>
+              ) : tasks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-zinc-500 py-12">
                   <ClipboardList className="w-16 h-16 text-zinc-800 mb-6" />
                   <p className="text-xl font-light text-zinc-300">Clear Schedule</p>

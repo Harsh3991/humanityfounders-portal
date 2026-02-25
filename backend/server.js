@@ -64,10 +64,10 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Only listen if not running in a serverless (like Vercel) environment
-if (process.env.NODE_ENV !== "production") {
+if (!process.env.VERCEL) {
     app.listen(PORT, () => {
-        console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-        console.log(`📡 Environment: ${process.env.NODE_ENV}`);
+        console.log(`\n🚀 Server running on port ${PORT}`);
+        console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`🔗 Health check: http://localhost:${PORT}/api/health\n`);
     });
 }
