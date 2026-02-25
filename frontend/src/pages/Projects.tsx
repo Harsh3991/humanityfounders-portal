@@ -162,6 +162,7 @@ const TaskRow = ({
   const [isAddingMode, setIsAddingMode] = useState(false);
 
   useEffect(() => {
+    if (!showAssignPopover && !showStatusPopover && !showPriorityPopover) return;
     function handleClickOutside(event: MouseEvent) {
       if (assignRef.current && !assignRef.current.contains(event.target as Node)) {
         setShowAssignPopover(false);
@@ -175,7 +176,7 @@ const TaskRow = ({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [showAssignPopover, showStatusPopover, showPriorityPopover]);
 
   const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(assignSearch.toLowerCase()));
 
@@ -633,14 +634,8 @@ export default function Projects() {
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[#0a0a0a] min-h-[600px] rounded-xl">
-        <div className="flex flex-col items-center gap-4 animate-pulse text-zinc-500">
-          <Loader2 className="w-10 h-10 animate-spin text-[#d4af37]" />
-          <p className="font-medium tracking-widest uppercase text-xs">Assembling workspaces...</p>
-        </div>
-      </div>
-    );
+    // Return empty structural state immediately instead of a full loading screen
+    // This allows the sidebars and headers to render instantly while data populates.
   }
 
   return (

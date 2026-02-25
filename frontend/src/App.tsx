@@ -16,8 +16,6 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-import { AnimatePresence, motion } from "framer-motion";
-
 function AppRoutes() {
   const { user } = useAuth();
   const location = useLocation();
@@ -44,18 +42,9 @@ function AppRoutes() {
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={!user ? 'login' : user.status === 'pending' ? 'onboard' : 'app'}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.4, ease: "easeInOut" }}
-        className="flex flex-col min-h-screen w-full"
-      >
-        {content}
-      </motion.div>
-    </AnimatePresence>
+    <div className="flex flex-col min-h-screen w-full">
+      {content}
+    </div>
   );
 }
 

@@ -18,7 +18,7 @@ interface Employee {
 }
 
 const ROLES = ["admin", "hr", "manager", "employee"];
-const DEPARTMENTS = ["Engineering", "Marketing", "Sales", "Human Resources", "Finance", "Operations", "Design", "Management"];
+const DEPARTMENTS = ["Engineering", "Marketing", "Sales", "Finance", "Operations", "Design", "Management"];
 
 const STATUS_STYLES = {
   active: 'text-emerald-400 bg-emerald-950/30 border-emerald-800/50',
@@ -363,17 +363,22 @@ export default function People() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">Department</label>
-                          <select className="w-full text-sm bg-[#18181b] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200" value={editForm.department || ''} onChange={e => setEditForm({ ...editForm, department: e.target.value })}>
-                            {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                          </select>
-                        </div>
-                        <div>
                           <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">Role</label>
-                          <select className="w-full text-sm bg-[#18181b] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200" value={editForm.role || ''} onChange={e => setEditForm({ ...editForm, role: e.target.value })}>
+                          <select className="w-full text-sm bg-[#18181b] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200" value={editForm.role || ''} onChange={e => {
+                            const newRole = e.target.value;
+                            setEditForm({ ...editForm, role: newRole, department: ['admin', 'hr'].includes(newRole) ? '' : (editForm.department || DEPARTMENTS[0]) });
+                          }}>
                             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                           </select>
                         </div>
+                        {!['admin', 'hr'].includes(editForm.role || '') && (
+                          <div>
+                            <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">Department</label>
+                            <select className="w-full text-sm bg-[#18181b] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200" value={editForm.department || ''} onChange={e => setEditForm({ ...editForm, department: e.target.value })}>
+                              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">System Status</label>
@@ -645,17 +650,22 @@ export default function People() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 font-semibold">Department</label>
-                  <select value={addForm.department} onChange={e => setAddForm({ ...addForm, department: e.target.value })} className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 transition-colors">
-                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 font-semibold">Privilege Role</label>
-                  <select value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 transition-colors">
+                  <select value={addForm.role} onChange={e => {
+                    const newRole = e.target.value;
+                    setAddForm({ ...addForm, role: newRole, department: ['admin', 'hr'].includes(newRole) ? '' : (addForm.department || DEPARTMENTS[0]) });
+                  }} className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 transition-colors">
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
+                {!['admin', 'hr'].includes(addForm.role) && (
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 font-semibold">Department</label>
+                    <select value={addForm.department} onChange={e => setAddForm({ ...addForm, department: e.target.value })} className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-3 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 transition-colors">
+                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="pt-6 flex justify-end gap-3 border-t border-zinc-800 mt-2">
