@@ -86,6 +86,25 @@ function formatDueDate(dateStr: string) {
   }
 }
 
+const AVATAR_COLORS = [
+  { bg: 'bg-[#d4af37]/20', text: 'text-[#d4af37]' },
+  { bg: 'bg-emerald-500/20', text: 'text-emerald-400' },
+  { bg: 'bg-blue-500/20', text: 'text-blue-400' },
+  { bg: 'bg-purple-500/20', text: 'text-purple-400' },
+  { bg: 'bg-rose-500/20', text: 'text-rose-400' },
+  { bg: 'bg-amber-500/20', text: 'text-amber-500' },
+  { bg: 'bg-cyan-500/20', text: 'text-cyan-400' },
+];
+
+const getAvatarColor = (identifier: string) => {
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[index];
+};
+
 const TaskInputRow = ({
   level,
   onSave,
@@ -246,11 +265,14 @@ const TaskRow = ({
           >
             {task.assignees && task.assignees.length > 0 ? (
               <div className="flex -space-x-1.5 items-center">
-                {task.assignees.map((assignee) => (
-                  <div key={assignee.id} className="w-5 h-5 rounded-full bg-[#d4af37]/20 flex items-center justify-center text-[#d4af37] text-[10px] font-bold flex-shrink-0 ring-1 ring-[#18181b]" title={assignee.name}>
-                    {assignee.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                  </div>
-                ))}
+                {task.assignees.map((assignee) => {
+                  const colors = getAvatarColor(assignee.id);
+                  return (
+                    <div key={assignee.id} className={`w-5 h-5 rounded-full ${colors.bg} flex items-center justify-center ${colors.text} text-[10px] font-bold flex-shrink-0 ring-1 ring-[#18181b]`} title={assignee.name}>
+                      {assignee.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <>
@@ -417,6 +439,7 @@ export default function Projects() {
     status: 'all',
     priority: 'all',
     deadline: 'all',
+    employee: 'all',
   });
 
   // New sophisticated colors matching your dark/gold aesthetic
@@ -667,6 +690,15 @@ export default function Projects() {
 
   const filterTopLevelTasks = (tasks: Task[], filters: typeof taskFilters): Task[] => {
     return tasks.filter(t => {
+      if (filters.employee !== 'all') {
+        const hasEmployee = (taskToCheck: Task): boolean => {
+          if (taskToCheck.assignees?.some(a => a.id === filters.employee)) return true;
+          if (taskToCheck.subtasks?.some(sub => hasEmployee(sub))) return true;
+          return false;
+        };
+        if (!hasEmployee(t)) return false;
+      }
+
       if (filters.status !== 'all' && t.status !== filters.status) return false;
       if (filters.priority !== 'all' && t.priority !== filters.priority) return false;
 
@@ -760,6 +792,17 @@ export default function Projects() {
                   <option value="all">Date</option>
                   <option value="overdue">Overdue</option>
                   <option value="today">Today</option>
+                </select>
+
+                <select
+                  className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none max-w-[120px] truncate"
+                  value={taskFilters.employee}
+                  onChange={e => setTaskFilters({ ...taskFilters, employee: e.target.value })}
+                >
+                  <option value="all">Assignee</option>
+                  {employees.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name}</option>
+                  ))}
                 </select>
 
                 <button
