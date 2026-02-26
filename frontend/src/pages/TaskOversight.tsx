@@ -42,6 +42,11 @@ export default function TaskOversight() {
   const [deptFilter, setDeptFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [taskFilters, setTaskFilters] = useState({
+    status: 'all',
+    priority: 'all',
+    deadline: 'all'
+  });
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -175,9 +180,46 @@ export default function TaskOversight() {
               <h1 className="text-3xl text-zinc-100 font-light truncate">
                 {selectedEmployee.name}
               </h1>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-2 font-semibold">
-                {tasks.length} Assigned Task{tasks.length !== 1 && 's'}
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">
+                  {tasks.length} Assigned Task{tasks.length !== 1 && 's'}
+                </p>
+                <div className="flex items-center gap-3 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+                  <select
+                    className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                    value={taskFilters.status}
+                    onChange={e => setTaskFilters({ ...taskFilters, status: e.target.value })}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="todo">To Do</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+
+                  <select
+                    className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                    value={taskFilters.priority}
+                    onChange={e => setTaskFilters({ ...taskFilters, priority: e.target.value })}
+                  >
+                    <option value="all">Priority</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Normal</option>
+                    <option value="low">Low</option>
+                    <option value="none">No Priority</option>
+                  </select>
+
+                  <select
+                    className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                    value={taskFilters.deadline}
+                    onChange={e => setTaskFilters({ ...taskFilters, deadline: e.target.value })}
+                  >
+                    <option value="all">Date</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="today">Today</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Tasks Grid */}
@@ -195,7 +237,22 @@ export default function TaskOversight() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                  {tasks.map((t, i) => {
+                  {tasks.filter(t => {
+                    let match = true;
+                    if (taskFilters.status !== 'all' && t.status !== taskFilters.status) match = false;
+                    if (taskFilters.priority !== 'all' && t.priority !== taskFilters.priority) match = false;
+
+                    if (taskFilters.deadline !== 'all') {
+                      if (!t.due || t.due === 'No Due Date') {
+                        match = false;
+                      } else {
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        if (taskFilters.deadline === 'today' && t.due !== todayStr) match = false;
+                        if (taskFilters.deadline === 'overdue' && !t.overdue) match = false;
+                      }
+                    }
+                    return match;
+                  }).map((t, i) => {
                     const statusConfig = STATUS_STYLES[t.status.toLowerCase()] || STATUS_STYLES.todo;
 
                     return (

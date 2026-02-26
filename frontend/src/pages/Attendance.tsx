@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2, ListTodo } from 'lucide-react';
 import axiosInstance from '../lib/axiosInstance';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -20,6 +20,15 @@ interface AttendanceEntry {
 interface EmployeeItem {
   id: string;
   name: string;
+}
+
+interface TaskItem {
+  id: string;
+  name: string;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  projectName: string;
 }
 
 function getAttendanceStatus(totalSeconds: number): AttendanceStatus {
@@ -46,6 +55,9 @@ export default function Attendance() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [history, setHistory] = useState<AttendanceEntry[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  const [userTasks, setUserTasks] = useState<TaskItem[]>([]);
+  const [selectedDateTasks, setSelectedDateTasks] = useState<TaskItem[]>([]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const year = currentDate.getFullYear();
@@ -115,6 +127,73 @@ export default function Attendance() {
       setIsLoadingHistory(false);
     }
   }, [isAdmin, selectedEmployeeId]);
+
+  // 3. Fetch Tasks
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        let res;
+        if (isAdmin) {
+          if (!selectedEmployeeId) return;
+          // HR doesn't have backend permissions to fetch user tasks directly, skip gracefully.
+          if (user?.role === 'hr') {
+            setUserTasks([]);
+            return;
+          }
+          res = await axiosInstance.get(`/tasks/user/${selectedEmployeeId}`);
+          if (res.data?.success) {
+            const allTasks: TaskItem[] = [];
+            res.data.data.forEach((group: any) => {
+              group.tasks.forEach((t: any) => {
+                allTasks.push({
+                  id: t._id,
+                  name: t.name,
+                  status: t.status,
+                  priority: t.priority,
+                  dueDate: t.dueDate,
+                  projectName: group.projectName
+                });
+              });
+            });
+            setUserTasks(allTasks);
+          }
+        } else {
+          res = await axiosInstance.get(`/tasks/my-tasks`);
+          if (res.data?.success) {
+            const allTasks = res.data.data.map((t: any) => ({
+              id: t._id,
+              name: t.name,
+              status: t.status,
+              priority: t.priority,
+              dueDate: t.dueDate,
+              projectName: t.project?.name || 'Unassigned'
+            }));
+            setUserTasks(allTasks);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch tasks", err);
+        setUserTasks([]);
+      }
+    };
+    fetchTasks();
+  }, [isAdmin, selectedEmployeeId, user?.role]);
+
+  // 4. Update Selected Tasks when selectedDay changes
+  useEffect(() => {
+    if (!selectedDay) {
+      setSelectedDateTasks([]);
+      return;
+    }
+    const curDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    const matched = userTasks.filter(t => {
+      if (!t.dueDate) return false;
+      const d = new Date(t.dueDate);
+      const tDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return tDateStr === curDateStr;
+    });
+    setSelectedDateTasks(matched);
+  }, [selectedDay, userTasks, year, month]);
 
   useEffect(() => {
     fetchHistory();
@@ -190,7 +269,7 @@ export default function Attendance() {
 
         {/* Left Sidebar (Only for Admins) */}
         {isAdmin && (
-          <aside className="w-full lg:w-[260px] shrink-0 flex flex-col pt-1">
+          <aside className="w-full lg:w-[260px] shrink-0 flex flex-col pt-1 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)]">
             <h1 className="text-yellow-500 font-heading text-3xl mb-8 tracking-wide">Workforce</h1>
             <div className="bg-[#18181b] rounded-xl overflow-hidden border border-zinc-800/60 shadow-2xl">
               <div className="bg-zinc-900/50 px-4 py-3 border-b border-zinc-800/80 flex items-center justify-between">
@@ -326,10 +405,61 @@ export default function Attendance() {
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-[#ecf3a4]" /> 1-3 Hrs</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-950 border border-rose-900" /> Absent</span>
             </div>
+
+            {/* Tasks for Selected Date */}
+            {selectedDay && (
+              <div className="mt-8 bg-[#18181b] p-6 rounded-2xl border border-zinc-800/60 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+                <h3 className="text-yellow-500 font-heading text-xl mb-5 uppercase tracking-widest flex items-center gap-3 border-b border-zinc-800 pb-4">
+                  <ListTodo className="w-5 h-5" /> Tasks for {monthName} {selectedDay}
+                </h3>
+                <div className="space-y-4">
+                  {selectedDateTasks.length > 0 ? (
+                    selectedDateTasks.map(t => (
+                      <div key={t.id} className="bg-zinc-900/40 rounded-xl p-4 border border-zinc-800 flex flex-col gap-3 hover:border-yellow-500/30 transition-colors">
+                        <div className="flex items-center justify-between gap-4">
+                          <h4 className="text-zinc-200 font-medium truncate">{t.name}</h4>
+                          <span className={`text-[10px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-md border whitespace-nowrap ${t.status === 'done' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/50' :
+                            t.status === 'in-progress' ? 'bg-blue-950/40 text-blue-400 border-blue-900/50' :
+                              t.status === 'review' ? 'bg-purple-950/40 text-purple-400 border-purple-900/50' :
+                                'bg-zinc-800/40 text-zinc-400 border-zinc-700/50'
+                            }`}>
+                            {t.status.replace('-', ' ')}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-400 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <span className="opacity-60">Project:</span>
+                            <span className="text-zinc-300">{t.projectName}</span>
+                          </div>
+                          <div className="w-1 h-1 rounded-full bg-zinc-700 hidden sm:block" />
+                          <div className="flex items-center gap-1.5">
+                            <span className="opacity-60">Priority:</span>
+                            <span className={`${t.priority === 'urgent' ? 'text-rose-400' :
+                              t.priority === 'high' ? 'text-amber-400' :
+                                t.priority === 'medium' ? 'text-emerald-400' : 'text-zinc-400'
+                              } capitalize`}>{t.priority}</span>
+                          </div>
+                          <div className="w-1 h-1 rounded-full bg-zinc-700 hidden sm:block" />
+                          <div className="flex items-center gap-1.5">
+                            <span className="opacity-60">Due:</span>
+                            <span className="text-zinc-300">{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'None'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-6 text-center text-zinc-500 flex flex-col items-center gap-3 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800/60">
+                      <ListTodo className="w-8 h-8 opacity-20" />
+                      <span className="text-sm font-medium">No tasks scheduled for this date</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Right Sidebar: Summary Widget & Daily Report */}
-          <aside className="w-full xl:w-[320px] shrink-0 flex flex-col gap-6">
+          <aside className="w-full xl:w-[320px] shrink-0 flex flex-col gap-6 xl:sticky xl:top-6 xl:self-start xl:max-h-[calc(100vh-3rem)] overflow-y-auto">
 
             {/* Summary Widget Card */}
             <div className="bg-[#18181b] rounded-2xl p-6 shadow-2xl border border-zinc-800/60 flex flex-col">

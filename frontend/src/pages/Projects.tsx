@@ -6,7 +6,7 @@ import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Load
 interface Task {
   id: string;
   name: string;
-  assignee: string | null;
+  assignees: { id: string; name: string }[];
   status: string;
   priority: string;
   dueDate: string | null;
@@ -29,7 +29,7 @@ function buildTaskTree(flatTasks: any[]): Task[] {
     taskMap.set(t._id, {
       id: t._id,
       name: t.name,
-      assignee: t.assignee?.fullName || null,
+      assignees: (t.assignees || []).map((a: any) => ({ id: a._id || a, name: a.fullName || a.name || '' })),
       status: t.status || 'todo',
       priority: t.priority || 'none',
       dueDate: t.dueDate || null,
@@ -135,7 +135,7 @@ const TaskRow = ({
   employees,
   onAddSubtask,
   onDeleteTask,
-  onAssignTask,
+  onToggleAssign,
   onChangeStatus,
   onChangePriority,
   onChangeDueDate
@@ -145,7 +145,7 @@ const TaskRow = ({
   employees: { id: string, name: string }[],
   onAddSubtask: (parentId: string, name: string) => void,
   onDeleteTask: (taskId: string) => void,
-  onAssignTask: (taskId: string, userId: string) => void,
+  onToggleAssign: (taskId: string, userId: string) => void,
   onChangeStatus: (taskId: string, status: string) => void,
   onChangePriority: (taskId: string, priority: string) => void,
   onChangeDueDate: (taskId: string, dueDate: string | null) => void
@@ -242,15 +242,16 @@ const TaskRow = ({
         <div className="w-48 flex items-center justify-start shrink-0 relative" ref={assignRef}>
           <button
             onClick={() => setShowAssignPopover(!showAssignPopover)}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 ${task.assignee ? 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500' : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
+            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 ${(task.assignees && task.assignees.length > 0) ? 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500' : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
           >
-            {task.assignee ? (
-              <>
-                <div className="w-5 h-5 rounded-full bg-[#d4af37]/20 flex items-center justify-center text-[#d4af37] text-[10px] font-bold flex-shrink-0">
-                  {task.assignee.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                </div>
-                <span className="text-xs text-zinc-300 truncate font-medium">{task.assignee}</span>
-              </>
+            {task.assignees && task.assignees.length > 0 ? (
+              <div className="flex -space-x-1.5 items-center">
+                {task.assignees.map((assignee) => (
+                  <div key={assignee.id} className="w-5 h-5 rounded-full bg-[#d4af37]/20 flex items-center justify-center text-[#d4af37] text-[10px] font-bold flex-shrink-0 ring-1 ring-[#18181b]" title={assignee.name}>
+                    {assignee.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                  </div>
+                ))}
+              </div>
             ) : (
               <>
                 <User className="w-3.5 h-3.5" />
@@ -278,12 +279,12 @@ const TaskRow = ({
                   <button
                     key={emp.id}
                     onClick={() => {
-                      onAssignTask(task.id, emp.id);
-                      setShowAssignPopover(false);
+                      onToggleAssign(task.id, emp.id);
                     }}
-                    className="text-left px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors"
+                    className="flex items-center justify-between px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors w-full text-left"
                   >
-                    {emp.name}
+                    <span>{emp.name}</span>
+                    {task.assignees.some(a => a.id === emp.id) && <CheckCircle2 className="w-3.5 h-3.5 text-[#d4af37]" />}
                   </button>
                 ))}
               </div>
@@ -378,7 +379,7 @@ const TaskRow = ({
               employees={employees}
               onAddSubtask={onAddSubtask}
               onDeleteTask={onDeleteTask}
-              onAssignTask={onAssignTask}
+              onToggleAssign={onToggleAssign}
               onChangeStatus={onChangeStatus}
               onChangePriority={onChangePriority}
               onChangeDueDate={onChangeDueDate}
@@ -411,6 +412,12 @@ export default function Projects() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const [taskFilters, setTaskFilters] = useState({
+    status: 'all',
+    priority: 'all',
+    deadline: 'all',
+  });
 
   // New sophisticated colors matching your dark/gold aesthetic
   const projectColors = ['#d4af37', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
@@ -521,7 +528,7 @@ export default function Projects() {
       const formattedSubtask: Task = {
         id: newTask._id,
         name: newTask.name,
-        assignee: newTask.assignee?.fullName || null,
+        assignees: (newTask.assignees || []).map((a: any) => ({ id: a._id || a, name: a.fullName || a.name || '' })),
         status: 'todo',
         priority: 'none',
         dueDate: null,
@@ -602,11 +609,36 @@ export default function Projects() {
     }
   };
 
-  const handleAssignTask = async (taskId: string, userId: string) => {
-    const employee = employees.find(e => e.id === userId);
-    updateLocalTask(taskId, { assignee: employee ? employee.name : null });
+  const handleToggleAssign = async (taskId: string, userId: string) => {
+    let currentTask: Task | undefined;
+    const findTask = (tasks: Task[]) => {
+      for (const t of tasks) {
+        if (t.id === taskId) {
+          currentTask = t; return true;
+        }
+        if (t.subtasks && findTask(t.subtasks)) return true;
+      }
+      return false;
+    };
+    for (const p of projects) {
+      if (findTask(p.tasks)) break;
+    }
+
+    if (!currentTask) return;
+
+    const hasUser = currentTask.assignees.some(a => a.id === userId);
+    let newAssignees;
+    if (hasUser) {
+      newAssignees = currentTask.assignees.filter(a => a.id !== userId);
+    } else {
+      const emp = employees.find(e => e.id === userId);
+      if (!emp) return;
+      newAssignees = [...currentTask.assignees, { id: emp.id, name: emp.name }];
+    }
+
+    updateLocalTask(taskId, { assignees: newAssignees });
     try {
-      await axiosInstance.put(`/tasks/${taskId}`, { assignee: userId });
+      await axiosInstance.put(`/tasks/${taskId}`, { assignees: newAssignees.map(a => a.id) });
     } catch (e) { fetchProjects(); }
   };
 
@@ -632,6 +664,26 @@ export default function Projects() {
   };
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+  const filterTopLevelTasks = (tasks: Task[], filters: typeof taskFilters): Task[] => {
+    return tasks.filter(t => {
+      if (filters.status !== 'all' && t.status !== filters.status) return false;
+      if (filters.priority !== 'all' && t.priority !== filters.priority) return false;
+
+      if (filters.deadline !== 'all') {
+        if (!t.dueDate) return false;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dueStr = t.dueDate.split('T')[0];
+        if (filters.deadline === 'today' && dueStr !== todayStr) return false;
+        if (filters.deadline === 'overdue' && (dueStr >= todayStr || t.status === 'done')) return false;
+      }
+
+      return true;
+    });
+  };
+
+  const filteredTasks = selectedProject ? filterTopLevelTasks(selectedProject.tasks, taskFilters) : [];
 
   if (isLoading) {
     // Return empty structural state immediately instead of a full loading screen
@@ -675,12 +727,48 @@ export default function Projects() {
                 <div className="w-3 h-8 rounded-sm shrink-0" style={{ backgroundColor: selectedProject.color }} />
                 <h1 className="text-3xl text-zinc-100 font-light truncate">{selectedProject.name}</h1>
               </div>
-              <button
-                onClick={() => setIsAddingRootTask(true)}
-                className="px-5 py-2.5 bg-[#d4af37] text-black text-xs uppercase tracking-widest font-semibold rounded-md hover:bg-[#b5952f] flex items-center justify-center gap-2 transition-colors shrink-0 shadow-lg shadow-[#d4af37]/10"
-              >
-                <Plus className="w-4 h-4" /> Add Task
-              </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+                <select
+                  className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                  value={taskFilters.status}
+                  onChange={e => setTaskFilters({ ...taskFilters, status: e.target.value })}
+                >
+                  <option value="all">All Status</option>
+                  <option value="todo">To Do</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="done">Done</option>
+                </select>
+
+                <select
+                  className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                  value={taskFilters.priority}
+                  onChange={e => setTaskFilters({ ...taskFilters, priority: e.target.value })}
+                >
+                  <option value="all">Priority</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Normal</option>
+                  <option value="low">Low</option>
+                  <option value="none">No Priority</option>
+                </select>
+
+                <select
+                  className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+                  value={taskFilters.deadline}
+                  onChange={e => setTaskFilters({ ...taskFilters, deadline: e.target.value })}
+                >
+                  <option value="all">Date</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="today">Today</option>
+                </select>
+
+                <button
+                  onClick={() => setIsAddingRootTask(true)}
+                  className="px-4 py-1.5 bg-[#d4af37] text-black text-xs uppercase tracking-widest font-semibold rounded-md hover:bg-[#b5952f] flex items-center justify-center gap-2 transition-colors shrink-0 shadow-lg shadow-[#d4af37]/10"
+                >
+                  <Plus className="w-4 h-4" /> Task
+                </button>
+              </div>
             </div>
 
             {/* Task List */}
@@ -702,7 +790,7 @@ export default function Projects() {
                       <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
                       <span className="text-xs text-zinc-400 tracking-widest uppercase mt-4">Loading tasks...</span>
                     </div>
-                  ) : selectedProject.tasks.length === 0 && !isAddingRootTask ? (
+                  ) : filteredTasks.length === 0 && !isAddingRootTask ? (
                     <div className="p-16 text-center flex flex-col items-center">
                       <FolderOpen className="w-12 h-12 text-zinc-700 mb-4" />
                       <p className="text-zinc-400 text-sm font-medium">No tasks in this project yet.</p>
@@ -710,14 +798,14 @@ export default function Projects() {
                     </div>
                   ) : (
                     <>
-                      {selectedProject.tasks.map(t => (
+                      {filteredTasks.map(t => (
                         <TaskRow
                           key={t.id}
                           task={t}
                           employees={employees}
                           onAddSubtask={(parentId, name) => { handleAddTask(selectedProject.id, parentId, name); }}
                           onDeleteTask={handleDeleteTask}
-                          onAssignTask={handleAssignTask}
+                          onToggleAssign={handleToggleAssign}
                           onChangeStatus={handleChangeStatus}
                           onChangePriority={handleChangePriority}
                           onChangeDueDate={handleChangeDueDate}

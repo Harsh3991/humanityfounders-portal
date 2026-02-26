@@ -6,9 +6,9 @@ export default function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen flex w-full relative">
+    <div className="h-screen w-full relative bg-background overflow-hidden">
       <AppSidebar />
-      <div className="flex-1 ml-56 flex flex-col min-h-screen relative overflow-hidden">
+      <div className="ml-56 flex flex-col h-full relative">
         <AppHeader />
         <main className="flex-1 p-6 flex flex-col relative overflow-y-auto overflow-x-hidden">
           <div className="w-full">

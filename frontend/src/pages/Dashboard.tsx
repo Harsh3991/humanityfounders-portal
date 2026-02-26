@@ -1,7 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axiosInstance from '../lib/axiosInstance';
-import { Clock, CheckCircle, AlertTriangle, FolderOpen, Pause, Play, History, Users } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, FolderOpen, Pause, Play, History, Users, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,12 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<string[]>([]);
   const [totalPresent, setTotalPresent] = useState<number | null>(null);
 
+  const [taskFilters, setTaskFilters] = useState({
+    status: 'none', // using 'none' to mean "All Active" by default or something? wait, we can just do 'all'
+    priority: 'all',
+    deadline: 'all'
+  });
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -98,7 +105,9 @@ export default function Dashboard() {
             name: t.name,
             project: t.project?.name || 'Unassigned',
             due: t.dueDate ? t.dueDate.split('T')[0] : 'No Date',
-            overdue: t.dueDate && new Date(t.dueDate) < new Date()
+            status: t.status || 'todo',
+            priority: t.priority || 'none',
+            overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
           })));
         }
 
@@ -202,11 +211,55 @@ export default function Dashboard() {
     setDailyUpdate('');
   }, [dailyUpdate, session]);
 
+  const monthlyStats = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    let present = 0;
+    let absent = 0;
+
+    history.forEach(entry => {
+      const entryDate = new Date(entry.date);
+      if (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) {
+        if (entry.attendanceStatus === 'absent') {
+          absent++;
+        } else {
+          present++;
+        }
+      }
+    });
+
+    const totalDays = present + absent;
+    // Default to 0 to avoid NaN, but handle edge cases smoothly
+    const presentPercentage = totalDays === 0 ? 0 : (present / totalDays) * 100;
+    const absentPercentage = totalDays === 0 ? 0 : (absent / totalDays) * 100;
+
+    return { present, absent, presentPercentage, absentPercentage };
+  }, [history]);
+
   const isClockedIn = session?.status === 'clocked-in' || session?.status === 'away';
   const isAway = session?.status === 'away';
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayEntry = history.find((e) => e.date === todayStr);
   const recentHistory = history.slice(0, 7);
+
+  const filteredTasks = tasks.filter(t => {
+    let match = true;
+    if (taskFilters.status !== 'none' && taskFilters.status !== 'all' && t.status !== taskFilters.status) match = false;
+    if (taskFilters.priority !== 'all' && t.priority !== taskFilters.priority) match = false;
+
+    if (taskFilters.deadline !== 'all') {
+      if (!t.due || t.due === 'No Date') {
+        match = false;
+      } else {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (taskFilters.deadline === 'today' && t.due !== todayStr) match = false;
+        if (taskFilters.deadline === 'overdue' && !t.overdue) match = false;
+      }
+    }
+    return match;
+  });
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-10 text-zinc-300 font-sans">
@@ -335,32 +388,32 @@ export default function Dashboard() {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-zinc-400 tracking-wide">Present</span>
-                <span className="text-zinc-100 font-medium font-mono">18 days</span>
+                <span className="text-zinc-100 font-medium font-mono">{monthlyStats.present} days</span>
               </div>
-              <div className="w-full bg-zinc-800/50 rounded-full h-1.5">
-                <div className="bg-emerald-500/80 h-1.5 rounded-full" style={{ width: '90%' }} />
+              <div className="w-full bg-zinc-800/50 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-emerald-500/80 h-full rounded-full transition-all duration-500" style={{ width: `${monthlyStats.presentPercentage}%` }} />
               </div>
             </div>
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm text-zinc-400 tracking-wide">Absent</span>
-                <span className="text-zinc-100 font-medium font-mono">2 days</span>
+                <span className="text-zinc-100 font-medium font-mono">{monthlyStats.absent} days</span>
               </div>
-              <div className="w-full bg-zinc-800/50 rounded-full h-1.5">
-                <div className="bg-red-500/80 h-1.5 rounded-full" style={{ width: '10%' }} />
+              <div className="w-full bg-zinc-800/50 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-red-500/80 h-full rounded-full transition-all duration-500" style={{ width: `${monthlyStats.absentPercentage}%` }} />
               </div>
             </div>
           </div>
         </div>
 
         {/* Active Projects Card */}
-        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
+        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md flex flex-col">
           <div className="flex items-center gap-3 mb-6">
             <FolderOpen className="w-5 h-5 text-[#d4af37]" />
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Active Projects</h3>
           </div>
-          <ul className="space-y-3">
-            {projects.length > 0 ? projects.map((p) => (
+          <ul className="space-y-3 flex-1">
+            {projects.length > 0 ? projects.slice(0, 5).map((p) => (
               <li key={p} className="flex items-center gap-3 text-sm text-zinc-300">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#d4af37]" />
                 {p}
@@ -369,6 +422,16 @@ export default function Dashboard() {
               <li className="text-sm text-zinc-500 italic">No active projects</li>
             )}
           </ul>
+          {projects.length > 6 && (
+            <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-end mt-auto">
+              <Link
+                to="/projects"
+                className="text-xs font-semibold uppercase tracking-widest text-[#d4af37] hover:text-[#b5952f] transition-colors flex items-center gap-1.5"
+              >
+                View All <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -446,9 +509,46 @@ export default function Dashboard() {
 
       {/* Tasks */}
       <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
-        <div className="flex items-center gap-3 mb-6">
-          <AlertTriangle className="w-5 h-5 text-[#d4af37]" />
-          <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">My Tasks</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-[#d4af37]" />
+            <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">My Tasks</h3>
+          </div>
+          <div className="flex items-center gap-3 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+            <select
+              className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+              value={taskFilters.status}
+              onChange={e => setTaskFilters({ ...taskFilters, status: e.target.value })}
+            >
+              <option value="all">All Status</option>
+              <option value="todo">To Do</option>
+              <option value="in-progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+
+            <select
+              className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+              value={taskFilters.priority}
+              onChange={e => setTaskFilters({ ...taskFilters, priority: e.target.value })}
+            >
+              <option value="all">Priority</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Normal</option>
+              <option value="low">Low</option>
+              <option value="none">No Priority</option>
+            </select>
+
+            <select
+              className="bg-[#0a0a0a] border border-zinc-800 text-zinc-300 text-xs rounded-md px-2 py-1.5 focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] outline-none"
+              value={taskFilters.deadline}
+              onChange={e => setTaskFilters({ ...taskFilters, deadline: e.target.value })}
+            >
+              <option value="all">Date</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Today</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -460,7 +560,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/40">
-              {tasks.length > 0 ? tasks.map((t) => (
+              {filteredTasks.length > 0 ? filteredTasks.map((t) => (
                 <tr key={t.id} className="hover:bg-zinc-800/20 transition-colors">
                   <td className="py-3 px-2 text-zinc-200 font-medium">{t.name}</td>
                   <td className="py-3 px-2 text-zinc-400 text-xs">{t.project}</td>
