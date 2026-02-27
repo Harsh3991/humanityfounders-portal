@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axiosInstance from '../lib/axiosInstance';
-import { Plus, Search, X, Loader2, AlertTriangle, Users, ArrowRight, FileText, CheckCircle2, LayoutDashboard, Clock, FileBadge, Eye } from 'lucide-react';
+import { Plus, Search, X, Loader2, AlertTriangle, Users, ArrowRight, FileText, CheckCircle2, LayoutDashboard, Clock, FileBadge, Eye, FolderKanban, ListChecks, CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, FileCheck, Shield, Activity, Timer, Briefcase, ClipboardList } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -42,6 +42,13 @@ export default function People() {
   const [profileTasks, setProfileTasks] = useState<any[]>([]);
   const [profileAttendance, setProfileAttendance] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+
+  // Work Log State
+  const [worklog, setWorklog] = useState<any>(null);
+  const [loadingWorklog, setLoadingWorklog] = useState(false);
+  const [worklogMonth, setWorklogMonth] = useState(new Date().getMonth() + 1);
+  const [worklogYear, setWorklogYear] = useState(new Date().getFullYear());
+  const [worklogSection, setWorklogSection] = useState<'overview' | 'projects' | 'tasks' | 'attendance' | 'audit'>('overview');
 
   // Add Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -135,7 +142,57 @@ export default function People() {
       setSelected(null);
       setProfileTasks([]);
       setProfileAttendance(null);
-    }, 500); // Wipe data after transition completes safely
+      setWorklog(null);
+      setWorklogSection('overview');
+    }, 500);
+  };
+
+  const fetchWorklog = async (userId: string, month?: number, year?: number) => {
+    setLoadingWorklog(true);
+    try {
+      const m = month || worklogMonth;
+      const y = year || worklogYear;
+      const res = await axiosInstance.get(`/users/${userId}/worklog?month=${m}&year=${y}`);
+      if (res?.data?.data) {
+        setWorklog(res.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching worklog', err);
+    } finally {
+      setLoadingWorklog(false);
+    }
+  };
+
+  const handleWorklogMonthChange = (direction: 'prev' | 'next') => {
+    let m = worklogMonth;
+    let y = worklogYear;
+    if (direction === 'prev') {
+      m -= 1;
+      if (m < 1) { m = 12; y -= 1; }
+    } else {
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+    setWorklogMonth(m);
+    setWorklogYear(y);
+    if (selected) fetchWorklog(selected.id, m, y);
+  };
+
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const formatTime = (dateStr: string) => {
+    if (!dateStr) return '--';
+    return new Date(dateStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '--';
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return '--';
+    return new Date(dateStr).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const handleViewDocument = async (docType: 'aadhaarCard' | 'panCard') => {
@@ -449,7 +506,10 @@ export default function People() {
                         {overviewTab === 'personal' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#d4af37] rounded-t-sm" />}
                       </button>
                       <button
-                        onClick={() => setOverviewTab('work')}
+                        onClick={() => {
+                          setOverviewTab('work');
+                          if (selected && !worklog) fetchWorklog(selected.id);
+                        }}
                         className={`pb-3 text-sm font-medium uppercase tracking-widest transition-colors relative ${overviewTab === 'work' ? 'text-[#d4af37]' : 'text-zinc-500 hover:text-zinc-300'}`}
                       >
                         Work Log
@@ -533,79 +593,389 @@ export default function People() {
                           </div>
                         </div>
                       </div>
+                    ) : loadingWorklog ? (
+                      <div className="flex flex-col items-center justify-center h-64 gap-3 text-zinc-500">
+                        <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest">Loading Work Log...</span>
+                      </div>
                     ) : (
-                      <div className="space-y-8">
-                        {/* Top Insight Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          {/* Attendance Snapshot */}
-                          <div className="bg-[#18181b] border border-zinc-800/60 shadow-xl rounded-xl p-6 flex flex-col justify-center">
-                            <div className="flex items-center justify-between mb-4 mt-[-0.25rem]">
-                              <div className="flex items-center gap-3">
-                                <Clock className="w-5 h-5 text-zinc-500" />
-                                <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold">MTD Attendance</h4>
-                              </div>
-                              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">{profileAttendance?.totalWorkingHours || 0} HRS</span>
-                            </div>
-
-                            <div className="flex items-end gap-2 mb-6">
-                              <span className="text-4xl font-light text-zinc-100 leading-none">{profileAttendance?.daysPresent || 0}</span>
-                              <span className="text-xs text-zinc-500 pb-1 font-semibold uppercase tracking-widest">Days Logged</span>
-                            </div>
-
-                            <div className="mt-auto">
-                              <div className="flex justify-between items-end mb-2">
-                                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Month Progress</span>
-                                <span className="text-xs font-medium text-zinc-300">~{Math.min(Math.round(((profileAttendance?.daysPresent || 0) / 22) * 100), 100)}%</span>
-                              </div>
-                              <div className="h-1.5 w-full bg-[#0a0a0a] border border-zinc-800/50 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-[#d4af37] to-amber-200 rounded-full transition-all duration-1000 ease-out"
-                                  style={{ width: `${Math.min(((profileAttendance?.daysPresent || 0) / 22) * 100, 100)}%` }}
-                                />
-                              </div>
-                            </div>
+                      <div className="space-y-6">
+                        {/* Month Navigator */}
+                        <div className="flex items-center justify-between bg-[#18181b] border border-zinc-800/60 rounded-xl px-5 py-3">
+                          <button onClick={() => handleWorklogMonthChange('prev')} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200">
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="w-4 h-4 text-[#d4af37]" />
+                            <span className="text-sm font-semibold text-zinc-200 tracking-wide">{MONTH_NAMES[worklogMonth - 1]} {worklogYear}</span>
                           </div>
-
-                          {/* Task Quick Stats */}
-                          <div className="bg-[#18181b] border border-zinc-800/60 shadow-xl rounded-xl p-6 flex flex-col justify-center">
-                            <div className="flex items-center gap-3 mb-5">
-                              <LayoutDashboard className="w-5 h-5 text-zinc-500" />
-                              <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold">Project Load</h4>
-                            </div>
-                            <div className="flex items-end gap-2 mb-2">
-                              <span className="text-4xl font-light text-zinc-100 leading-none">{profileTasks.length}</span>
-                              <span className="text-xs text-zinc-500 pb-1 font-semibold uppercase tracking-widest">Tasks</span>
-                            </div>
-                            <p className="text-xs text-zinc-400 mt-auto">Across multiple shared projects</p>
-                          </div>
+                          <button onClick={() => handleWorklogMonthChange('next')} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
                         </div>
 
-                        {/* Active Work Flow */}
-                        <div className="space-y-4">
-                          <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Active Work</h4>
-                          <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5 shadow-xl min-h-[16rem] max-h-[16rem] overflow-y-auto align-top">
-                            {profileTasks.length === 0 ? (
-                              <p className="text-sm text-zinc-500 italic mt-4 text-center">No assigned tasks currently.</p>
+                        {/* Sub-navigation */}
+                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                          {[
+                            { key: 'overview', label: 'Summary', icon: Activity },
+                            { key: 'projects', label: 'Projects', icon: FolderKanban },
+                            { key: 'tasks', label: 'Tasks', icon: ListChecks },
+                            { key: 'attendance', label: 'Attendance', icon: Clock },
+                            { key: 'audit', label: 'Audit Trail', icon: Shield },
+                          ].map(({ key, label, icon: Icon }) => (
+                            <button
+                              key={key}
+                              onClick={() => setWorklogSection(key as any)}
+                              className={`flex items-center gap-1.5 px-3.5 py-2 text-[10px] uppercase tracking-widest font-semibold rounded-lg border transition-all duration-200 whitespace-nowrap ${worklogSection === key
+                                ? 'bg-[#d4af37]/10 border-[#d4af37]/40 text-[#d4af37]'
+                                : 'bg-[#18181b] border-zinc-800/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                                }`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* ═══ SUMMARY SECTION ═══ */}
+                        {worklogSection === 'overview' && worklog && (
+                          <div className="space-y-6">
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              {[
+                                { label: 'Projects', value: worklog.summary?.totalProjects || 0, icon: FolderKanban, accent: 'text-violet-400' },
+                                { label: 'Tasks', value: worklog.summary?.totalTasks || 0, icon: ListChecks, accent: 'text-blue-400' },
+                                { label: 'Days Present', value: worklog.summary?.attendance?.daysPresent || 0, icon: CalendarDays, accent: 'text-emerald-400' },
+                                { label: 'Hours Worked', value: worklog.summary?.attendance?.totalWorkingHours || 0, icon: Timer, accent: 'text-amber-400' },
+                              ].map(({ label, value, icon: Icon, accent }) => (
+                                <div key={label} className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 flex flex-col">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <Icon className={`w-4 h-4 ${accent}`} />
+                                    <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">{label}</span>
+                                  </div>
+                                  <span className="text-2xl font-light text-zinc-100">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Task Status Breakdown */}
+                            <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5">
+                              <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold mb-4">Task Status Breakdown</h4>
+                              <div className="grid grid-cols-4 gap-3">
+                                {[
+                                  { label: 'To Do', count: worklog.summary?.tasksByStatus?.todo || 0, color: 'bg-zinc-700' },
+                                  { label: 'In Progress', count: worklog.summary?.tasksByStatus?.inProgress || 0, color: 'bg-blue-500' },
+                                  { label: 'Review', count: worklog.summary?.tasksByStatus?.review || 0, color: 'bg-amber-500' },
+                                  { label: 'Done', count: worklog.summary?.tasksByStatus?.done || 0, color: 'bg-emerald-500' },
+                                ].map(({ label, count, color }) => (
+                                  <div key={label} className="text-center">
+                                    <div className={`h-2 rounded-full ${color} mb-2`} style={{ width: `${Math.max(((count / Math.max(worklog.summary?.totalTasks || 1, 1)) * 100), 8)}%`, margin: '0 auto' }} />
+                                    <span className="text-lg font-light text-zinc-100 block">{count}</span>
+                                    <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">{label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Attendance Overview */}
+                            <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5">
+                              <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold">Attendance Overview</h4>
+                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest">{worklog.summary?.attendance?.totalSessions || 0} Sessions · {worklog.summary?.attendance?.totalBreaks || 0} Breaks</span>
+                              </div>
+                              <div className="flex items-end gap-2 mb-4">
+                                <span className="text-4xl font-light text-zinc-100 leading-none">{worklog.summary?.attendance?.daysPresent || 0}</span>
+                                <span className="text-xs text-zinc-500 pb-1 font-semibold uppercase tracking-widest">/ 22 Days</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-[#0a0a0a] border border-zinc-800/50 rounded-full overflow-hidden">
+                                <div className="h-full bg-gradient-to-r from-[#d4af37] to-amber-200 rounded-full transition-all duration-1000 ease-out" style={{ width: `${Math.min(((worklog.summary?.attendance?.daysPresent || 0) / 22) * 100, 100)}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Recent Timeline */}
+                            <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5">
+                              <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold mb-4">Recent Activity</h4>
+                              <div className="space-y-3 max-h-[20rem] overflow-y-auto pr-1">
+                                {(worklog.timeline || []).slice(0, 20).map((event: any, i: number) => (
+                                  <div key={i} className="flex items-start gap-3 group">
+                                    <div className={`mt-1 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${event.type === 'clock_in' ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-400' :
+                                      event.type === 'clock_out' ? 'bg-red-950/30 border-red-800/50 text-red-400' :
+                                        event.type === 'break_start' || event.type === 'break_end' ? 'bg-amber-950/30 border-amber-800/50 text-amber-400' :
+                                          event.type === 'daily_report' ? 'bg-blue-950/30 border-blue-800/50 text-blue-400' :
+                                            event.type === 'task_assigned' || event.type === 'task_completed' ? 'bg-violet-950/30 border-violet-800/50 text-violet-400' :
+                                              'bg-zinc-900 border-zinc-800 text-zinc-400'
+                                      }`}>
+                                      {event.type === 'clock_in' ? <LogIn className="w-3.5 h-3.5" /> :
+                                        event.type === 'clock_out' ? <LogOut className="w-3.5 h-3.5" /> :
+                                          event.type === 'break_start' || event.type === 'break_end' ? <Coffee className="w-3.5 h-3.5" /> :
+                                            event.type === 'daily_report' ? <FileCheck className="w-3.5 h-3.5" /> :
+                                              event.type === 'audit' ? <Shield className="w-3.5 h-3.5" /> :
+                                                <Activity className="w-3.5 h-3.5" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-zinc-300 truncate">{event.details}</p>
+                                      <p className="text-[10px] text-zinc-600 mt-0.5">{formatDateTime(event.timestamp)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {(!worklog.timeline || worklog.timeline.length === 0) && (
+                                  <p className="text-sm text-zinc-500 italic text-center py-4">No activity recorded for this month.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ═══ PROJECTS SECTION ═══ */}
+                        {worklogSection === 'projects' && worklog && (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Assigned Projects</h4>
+                              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.projects?.length || 0} total</span>
+                            </div>
+                            {(worklog.projects || []).length === 0 ? (
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                                <FolderKanban className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                                <p className="text-sm text-zinc-500 italic">Not assigned to any projects.</p>
+                              </div>
                             ) : (
                               <div className="space-y-3">
-                                {profileTasks.map(t => (
-                                  <div key={t._id} className="p-3 border border-zinc-800/60 bg-[#0a0a0a] rounded-lg group hover:border-[#d4af37]/60 transition-colors">
-                                    <div className="flex justify-between items-start gap-3">
-                                      <h5 className="text-sm font-medium text-zinc-200 truncate">{t.name}</h5>
-                                      <span className={`text-[9px] uppercase tracking-widest font-semibold px-2 py-0.5 rounded border ${t.status === 'done' ? 'text-emerald-400 border-emerald-900/50 bg-emerald-950/20' :
-                                        t.status === 'in-progress' ? 'text-blue-400 border-blue-900/50 bg-blue-950/20' :
-                                          'text-zinc-400 border-zinc-800 bg-zinc-900'
-                                        }`}>
-                                        {t.status}
-                                      </span>
+                                {(worklog.projects || []).map((p: any) => (
+                                  <div key={p._id} className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5 hover:border-[#d4af37]/30 transition-colors">
+                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-violet-950/40 border border-violet-800/50 rounded-lg flex items-center justify-center">
+                                          <Briefcase className="w-4 h-4 text-violet-400" />
+                                        </div>
+                                        <div>
+                                          <h5 className="text-sm font-medium text-zinc-200">{p.name}</h5>
+                                          <p className="text-[10px] text-zinc-500 mt-0.5">Created {formatDate(p.createdAt)}</p>
+                                        </div>
+                                      </div>
+                                      <span className={`text-[9px] uppercase tracking-widest font-semibold px-2 py-0.5 rounded border ${p.status === 'active' ? 'text-emerald-400 border-emerald-900/50 bg-emerald-950/20' :
+                                        p.status === 'completed' ? 'text-blue-400 border-blue-900/50 bg-blue-950/20' :
+                                          p.status === 'on-hold' ? 'text-amber-400 border-amber-900/50 bg-amber-950/20' :
+                                            'text-zinc-400 border-zinc-800 bg-zinc-900'
+                                        }`}>{p.status}</span>
                                     </div>
-                                    <p className="text-xs text-zinc-500 mt-1.5 font-mono truncate">{t.project?.name || 'Assigned Project'}</p>
+                                    {p.description && <p className="text-xs text-zinc-400 mb-3 line-clamp-2">{p.description}</p>}
+                                    <div className="flex items-center gap-4 text-[10px] text-zinc-500">
+                                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {p.members?.length || 0} members</span>
+                                      {p.deadline && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Due {formatDate(p.deadline)}</span>}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
                             )}
                           </div>
-                        </div>
+                        )}
+
+                        {/* ═══ TASKS SECTION ═══ */}
+                        {worklogSection === 'tasks' && worklog && (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Assigned Tasks</h4>
+                              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.tasks?.length || 0} total</span>
+                            </div>
+                            {(worklog.tasks || []).length === 0 ? (
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                                <ClipboardList className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                                <p className="text-sm text-zinc-500 italic">No tasks assigned.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {(worklog.tasks || []).map((t: any) => (
+                                  <div key={t._id} className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 hover:border-[#d4af37]/30 transition-colors">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="text-sm font-medium text-zinc-200 truncate">{t.name}</h5>
+                                        <p className="text-[10px] text-zinc-500 mt-1 font-mono">{t.project?.name || 'Unknown Project'}</p>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {t.priority && t.priority !== 'none' && (
+                                          <span className={`text-[8px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded ${t.priority === 'urgent' ? 'text-red-400 bg-red-950/30' :
+                                            t.priority === 'high' ? 'text-orange-400 bg-orange-950/30' :
+                                              t.priority === 'medium' ? 'text-amber-400 bg-amber-950/30' :
+                                                'text-zinc-400 bg-zinc-800'
+                                            }`}>{t.priority}</span>
+                                        )}
+                                        <span className={`text-[9px] uppercase tracking-widest font-semibold px-2 py-0.5 rounded border ${t.status === 'done' ? 'text-emerald-400 border-emerald-900/50 bg-emerald-950/20' :
+                                          t.status === 'in-progress' ? 'text-blue-400 border-blue-900/50 bg-blue-950/20' :
+                                            t.status === 'review' ? 'text-amber-400 border-amber-900/50 bg-amber-950/20' :
+                                              'text-zinc-400 border-zinc-800 bg-zinc-900'
+                                          }`}>{t.status}</span>
+                                      </div>
+                                    </div>
+                                    {t.description && <p className="text-xs text-zinc-400 mt-2 line-clamp-2">{t.description}</p>}
+                                    <div className="flex items-center gap-4 mt-3 text-[10px] text-zinc-500">
+                                      {t.dueDate && <span>Due {formatDate(t.dueDate)}</span>}
+                                      {t.completedAt && <span className="text-emerald-500">✓ Completed {formatDate(t.completedAt)}</span>}
+                                      {t.createdBy && <span>By {t.createdBy.fullName}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ═══ ATTENDANCE SECTION ═══ */}
+                        {worklogSection === 'attendance' && worklog && (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Attendance Records</h4>
+                              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.attendance?.length || 0} days</span>
+                            </div>
+                            {(worklog.attendance || []).length === 0 ? (
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                                <Clock className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                                <p className="text-sm text-zinc-500 italic">No attendance records for this month.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {(worklog.attendance || []).map((record: any) => (
+                                  <div key={record._id} className="bg-[#18181b] border border-zinc-800/60 rounded-xl overflow-hidden">
+                                    {/* Day Header */}
+                                    <div className="px-5 py-3 bg-[#0a0a0a]/50 border-b border-zinc-800/40 flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-2 h-2 rounded-full ${record.status === 'clocked-in' ? 'bg-emerald-400 animate-pulse' :
+                                          record.status === 'clocked-out' ? 'bg-zinc-500' :
+                                            record.status === 'away' ? 'bg-amber-400' :
+                                              'bg-red-400'
+                                          }`} />
+                                        <span className="text-sm font-medium text-zinc-200">{formatDate(record.date)}</span>
+                                        <span className={`text-[9px] uppercase tracking-widest font-semibold px-2 py-0.5 rounded border ${record.status === 'clocked-in' ? 'text-emerald-400 border-emerald-900/50 bg-emerald-950/20' :
+                                          record.status === 'clocked-out' ? 'text-zinc-400 border-zinc-800 bg-zinc-900' :
+                                            record.status === 'away' ? 'text-amber-400 border-amber-900/50 bg-amber-950/20' :
+                                              'text-red-400 border-red-900/50 bg-red-950/20'
+                                          }`}>{record.status}</span>
+                                      </div>
+                                      <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest">
+                                        {Math.round((record.activeSeconds || 0) / 3600 * 10) / 10} hrs
+                                      </span>
+                                    </div>
+
+                                    <div className="p-5 space-y-4">
+                                      {/* Sessions */}
+                                      {record.sessions && record.sessions.length > 0 && (
+                                        <div>
+                                          <h6 className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Sessions</h6>
+                                          <div className="space-y-2">
+                                            {record.sessions.map((s: any, idx: number) => (
+                                              <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#0a0a0a] border border-zinc-800/50">
+                                                <LogIn className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                <span className="text-xs text-zinc-300">{formatTime(s.start)}</span>
+                                                <span className="text-zinc-700">→</span>
+                                                {s.end ? (
+                                                  <>
+                                                    <LogOut className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                                                    <span className="text-xs text-zinc-300">{formatTime(s.end)}</span>
+                                                    <span className="text-[10px] text-zinc-500 ml-auto">{Math.round((s.duration || 0) / 60)} min</span>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-xs text-emerald-400 italic">Ongoing</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Breaks */}
+                                      {record.breaks && record.breaks.length > 0 && (
+                                        <div>
+                                          <h6 className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Breaks</h6>
+                                          <div className="space-y-2">
+                                            {record.breaks.map((b: any, idx: number) => (
+                                              <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#0a0a0a] border border-amber-900/20">
+                                                <Coffee className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                                <span className="text-xs text-zinc-300">{formatTime(b.start)}</span>
+                                                <span className="text-zinc-700">→</span>
+                                                {b.end ? (
+                                                  <>
+                                                    <span className="text-xs text-zinc-300">{formatTime(b.end)}</span>
+                                                    <span className="text-[10px] text-zinc-500 ml-auto">{Math.round((b.duration || 0) / 60)} min</span>
+                                                  </>
+                                                ) : (
+                                                  <span className="text-xs text-amber-400 italic">Ongoing</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Daily Report */}
+                                      {record.dailyReport && record.dailyReport.trim() && (
+                                        <div>
+                                          <h6 className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Daily Report</h6>
+                                          <div className="p-3 rounded-lg bg-blue-950/10 border border-blue-900/20">
+                                            <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{record.dailyReport}</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ═══ AUDIT TRAIL SECTION ═══ */}
+                        {worklogSection === 'audit' && worklog && (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Audit Trail</h4>
+                              <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.auditLogs?.length || 0} events</span>
+                            </div>
+                            {(worklog.auditLogs || []).length === 0 ? (
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                                <Shield className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                                <p className="text-sm text-zinc-500 italic">No audit events recorded.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {(worklog.auditLogs || []).map((log: any, i: number) => (
+                                  <div key={log._id || i} className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+                                    <div className="flex items-start gap-3">
+                                      <div className={`mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${log.action === 'CREATE_EMPLOYEE' ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-400' :
+                                        log.action === 'DELETE_EMPLOYEE' ? 'bg-red-950/30 border-red-800/50 text-red-400' :
+                                          log.action === 'UPDATE_EMPLOYEE' ? 'bg-blue-950/30 border-blue-800/50 text-blue-400' :
+                                            'bg-amber-950/30 border-amber-800/50 text-amber-400'
+                                        }`}>
+                                        <Shield className="w-4 h-4" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className={`text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded ${log.action === 'CREATE_EMPLOYEE' ? 'text-emerald-400 bg-emerald-950/30' :
+                                            log.action === 'DELETE_EMPLOYEE' ? 'text-red-400 bg-red-950/30' :
+                                              log.action === 'UPDATE_EMPLOYEE' ? 'text-blue-400 bg-blue-950/30' :
+                                                'text-amber-400 bg-amber-950/30'
+                                            }`}>{log.action?.replace(/_/g, ' ')}</span>
+                                        </div>
+                                        <p className="text-sm text-zinc-300">{log.details}</p>
+                                        <div className="flex items-center gap-3 mt-2 text-[10px] text-zinc-500">
+                                          <span>By {log.performedBy?.fullName || 'System'}</span>
+                                          <span>•</span>
+                                          <span>{formatDateTime(log.createdAt)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* If no worklog data loaded at all */}
+                        {!worklog && !loadingWorklog && (
+                          <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                            <Activity className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+                            <p className="text-sm text-zinc-500 italic">No work log data available.</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
