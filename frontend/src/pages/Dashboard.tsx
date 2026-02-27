@@ -52,29 +52,6 @@ function getDisplaySeconds(session: TimeSession | null): number {
   return base + Math.floor((Date.now() - session.runStartedAt) / 1000);
 }
 
-function parseDailyReport(summary: string) {
-  const lines = summary.split('\n');
-  const blocks: { id: number, time: string | null, text: string }[] = [];
-  let currentBlock: { id: number, time: string | null, text: string } | null = null;
-  let counter = 0;
-
-  lines.forEach(line => {
-    const match = line.match(/^\[(.*?)\]:\s*(.*)$/);
-    if (match) {
-      if (currentBlock) blocks.push(currentBlock);
-      currentBlock = { id: counter++, time: match[1], text: match[2] };
-    } else {
-      if (!currentBlock) {
-        currentBlock = { id: counter++, time: null, text: line };
-      } else {
-        currentBlock.text += '\n' + line;
-      }
-    }
-  });
-  if (currentBlock) blocks.push(currentBlock);
-  return blocks.filter(b => b.text.trim().length > 0);
-}
-
 export default function Dashboard() {
   const { user } = useAuth();
   const [session, setSession] = useState<TimeSession | null>(null);
@@ -489,30 +466,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-6 pt-4 border-t border-zinc-800/50">
             <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-2">Work Summary</p>
-            <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[1.2rem] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-zinc-800 before:to-transparent pt-2 mt-4 pb-4">
-              {parseDailyReport(todayEntry.summary).map((block, index) => (
-                <div key={block.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-3 h-3 rounded-full border-4 border-[#18181b] bg-yellow-500/80 group-hover:bg-yellow-400 group-hover:scale-125 transition-all duration-300 ml-[1.05rem] md:ml-0 shadow shadow-yellow-500/20 absolute shrink-0 md:left-1/2 md:-translate-x-1/2" />
-
-                  <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] p-4 bg-zinc-900/40 rounded-xl border border-zinc-800 hover:border-yellow-500/30 hover:bg-zinc-800/40 transition-colors shadow-lg shadow-black/20 backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-2">
-                      {block.time ? (
-                        <span className="text-[10px] bg-yellow-500/10 text-yellow-500 font-mono px-2 py-0.5 rounded border border-yellow-500/20">
-                          {block.time}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-mono px-2 py-0.5 rounded border border-emerald-500/20">
-                          {index === 0 ? 'Initial Clock Out' : 'Update'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap font-medium">
-                      {block.text}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-zinc-400 leading-relaxed">{todayEntry.summary}</p>
           </div>
         </div>
       )}

@@ -247,10 +247,11 @@ const clockOut = async (req, res, next) => {
         record.lastActiveAt = null;
 
         // Append report if one exists (for multi-session days)
+        const formattedReport = `[${now.toLocaleTimeString()}]: ${dailyReport.trim()}`;
         if (record.dailyReport) {
-            record.dailyReport += `\n[${now.toLocaleTimeString()}]: ${dailyReport.trim()}`;
+            record.dailyReport += `\n${formattedReport}`;
         } else {
-            record.dailyReport = dailyReport.trim();
+            record.dailyReport = formattedReport;
         }
 
         await record.save();
