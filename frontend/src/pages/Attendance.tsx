@@ -192,6 +192,7 @@ export default function Attendance() {
         {isAdmin && (
           <aside className="w-full lg:w-[260px] shrink-0 flex flex-col pt-1 lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-3rem)]">
             <h1 className="text-yellow-500 font-heading text-3xl mb-8 tracking-wide">Workforce</h1>
+
             <div className="bg-[#18181b] rounded-xl overflow-hidden border border-zinc-800/60 shadow-2xl">
               <div className="bg-zinc-900/50 px-4 py-3 border-b border-zinc-800/80 flex items-center justify-between">
                 <span className="text-xs uppercase tracking-widest text-zinc-500 font-bold">Employees</span>
