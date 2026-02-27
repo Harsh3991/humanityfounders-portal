@@ -192,23 +192,32 @@ export default function Dashboard() {
     } catch (err) { }
 
     const totalSeconds = getDisplaySeconds(session);
-    const status = getAttendanceStatus(totalSeconds);
-    const now = Date.now();
 
-    const entry: AttendanceEntry = {
-      date: new Date().toISOString().slice(0, 10),
-      totalSeconds,
-      attendanceStatus: status,
-      summary: dailyUpdate.trim(),
-      clockIn: now,
-      clockOut: now,
-    };
-
-    setHistory((prev) => [entry, ...prev]);
+    // Update session state immediately for the timer UI
     setSession((prev) => prev ? { ...prev, status: 'clocked-out', activeSeconds: totalSeconds, runStartedAt: null } : null);
     setDisplayTime(totalSeconds);
     setShowClockOutModal(false);
     setDailyUpdate('');
+
+    // Re-fetch history from the API to get accurate, server-side data
+    // This avoids timezone/duplicate issues from optimistic updates
+    try {
+      const histRes = await axiosInstance.get('/attendance/history');
+      const dataArray = histRes?.data?.data?.records;
+      if (histRes?.data?.success && Array.isArray(dataArray)) {
+        const formattedHistory: AttendanceEntry[] = dataArray.map((h: any) => ({
+          date: new Date(h.date).toISOString().slice(0, 10),
+          totalSeconds: h.activeSeconds || 0,
+          attendanceStatus: h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0),
+          summary: h.dailyReport || 'No update provided',
+          clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
+          clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
+        }));
+        setHistory(formattedHistory);
+      }
+    } catch (err) {
+      console.error("Failed to refresh history after clock-out:", err);
+    }
   }, [dailyUpdate, session]);
 
   const monthlyStats = useMemo(() => {
