@@ -113,14 +113,18 @@ export default function Dashboard() {
 
         const dataArray = histRes?.data?.data?.records;
         if (histRes?.data?.success && Array.isArray(dataArray)) {
-          const formattedHistory = dataArray.map((h: any) => ({
-            date: new Date(h.date).toISOString().slice(0, 10),
-            totalSeconds: h.activeSeconds || 0,
-            attendanceStatus: h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0),
-            summary: h.dailyReport || 'No update provided',
-            clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
-            clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
-          }));
+          const formattedHistory = dataArray.map((h: any) => {
+            const d = new Date(h.date);
+            const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return {
+              date: localDate,
+              totalSeconds: h.activeSeconds || 0,
+              attendanceStatus: h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0),
+              summary: h.dailyReport || 'No update provided',
+              clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
+              clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
+            };
+          });
           setHistory(formattedHistory);
         }
 
@@ -205,14 +209,18 @@ export default function Dashboard() {
       const histRes = await axiosInstance.get('/attendance/history');
       const dataArray = histRes?.data?.data?.records;
       if (histRes?.data?.success && Array.isArray(dataArray)) {
-        const formattedHistory: AttendanceEntry[] = dataArray.map((h: any) => ({
-          date: new Date(h.date).toISOString().slice(0, 10),
-          totalSeconds: h.activeSeconds || 0,
-          attendanceStatus: h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0),
-          summary: h.dailyReport || 'No update provided',
-          clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
-          clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
-        }));
+        const formattedHistory: AttendanceEntry[] = dataArray.map((h: any) => {
+          const d = new Date(h.date);
+          const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          return {
+            date: localDate,
+            totalSeconds: h.activeSeconds || 0,
+            attendanceStatus: h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0),
+            summary: h.dailyReport || 'No update provided',
+            clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
+            clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
+          };
+        });
         setHistory(formattedHistory);
       }
     } catch (err) {
@@ -249,7 +257,8 @@ export default function Dashboard() {
 
   const isClockedIn = session?.status === 'clocked-in' || session?.status === 'away';
   const isAway = session?.status === 'away';
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayEntry = history.find((e) => e.date === todayStr);
   const recentHistory = history.slice(0, 7);
 
