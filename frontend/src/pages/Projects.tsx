@@ -107,22 +107,70 @@ const getAvatarColor = (identifier: string) => {
 
 const TaskInputRow = ({
   level,
+  employees,
   onSave,
   onCancel
 }: {
   level: number;
-  onSave: (name: string) => void;
+  employees: { id: string, name: string }[];
+  onSave: (data: { name: string; assignees: string[]; priority: string; dueDate: string | null }) => void;
   onCancel: () => void;
 }) => {
   const [name, setName] = useState('');
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [priority, setPriority] = useState('none');
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [showAssignPopover, setShowAssignPopover] = useState(false);
+  const [showPriorityPopover, setShowPriorityPopover] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
+  const assignRef = useRef<HTMLDivElement>(null);
+  const priorityRef = useRef<HTMLDivElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!showAssignPopover && !showPriorityPopover) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (assignRef.current && !assignRef.current.contains(event.target as Node)) {
+        setShowAssignPopover(false);
+      }
+      if (priorityRef.current && !priorityRef.current.contains(event.target as Node)) {
+        setShowPriorityPopover(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAssignPopover, showPriorityPopover]);
+
+  const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(assignSearch.toLowerCase()));
+
+  const toggleAssignee = (userId: string) => {
+    setSelectedAssignees(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSave = () => {
+    onSave({ name, assignees: selectedAssignees, priority, dueDate });
+  };
+
   return (
     <div
-      className="flex items-center py-2.5 px-3 bg-[#18181b]/50 hover:bg-zinc-800/30 transition-colors border-b border-zinc-800/40 last:border-0"
+      className={`flex items-center py-2.5 px-3 bg-[#d4af37]/[0.03] border-b border-zinc-800/40 last:border-0 ring-1 ring-[#d4af37]/20 ${showAssignPopover ? 'relative z-50' : ''}`}
       style={{ paddingLeft: `calc(${level * 1.5 + 1}rem + 8px)` }}
     >
+      {/* Status placeholder */}
+      <div className="relative mr-1.5 flex items-center justify-center shrink-0">
+        <div className="w-5 h-5 flex items-center justify-center">
+          <div className="w-3.5 h-3.5 rounded-full border-[2px] border-zinc-500 border-dotted" />
+        </div>
+      </div>
+
+      {/* Chevron placeholder */}
       <div className="w-5 h-5 flex items-center justify-center mr-3 text-zinc-600 shrink-0">
         <ChevronRight className="w-4 h-4 opacity-50" />
       </div>
+
+      {/* Name input */}
       <div className="flex-1 text-sm text-zinc-200 pr-4 min-w-0">
         <input
           autoFocus
@@ -130,20 +178,149 @@ const TaskInputRow = ({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onSave(name);
+            if (e.key === 'Enter') handleSave();
             if (e.key === 'Escape') onCancel();
           }}
-          placeholder="Task name (press Enter to save)"
+          placeholder="Task name..."
           className="w-full bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-zinc-600 font-medium"
         />
       </div>
-      <div className="w-48 shrink-0 flex items-center gap-2">
-        <button onClick={() => onSave(name)} className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold bg-[#d4af37] text-black hover:bg-[#b5952f] transition-colors rounded">Save</button>
-        <button onClick={onCancel} className="px-3 py-1 text-[10px] uppercase tracking-widest font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors">Cancel</button>
+
+      {/* Assignee picker */}
+      <div className="w-48 flex items-center justify-start shrink-0 relative" ref={assignRef}>
+        <button
+          onClick={() => setShowAssignPopover(!showAssignPopover)}
+          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 ${selectedAssignees.length > 0
+            ? 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500'
+            : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'
+            }`}
+        >
+          {selectedAssignees.length > 0 ? (
+            <div className="flex -space-x-1.5 items-center">
+              {selectedAssignees.map((uid) => {
+                const emp = employees.find(e => e.id === uid);
+                if (!emp) return null;
+                const colors = getAvatarColor(emp.id);
+                return (
+                  <div key={uid} className={`w-5 h-5 rounded-full ${colors.bg} flex items-center justify-center ${colors.text} text-[10px] font-bold flex-shrink-0 ring-1 ring-[#18181b]`} title={emp.name}>
+                    {emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <User className="w-3.5 h-3.5" />
+              <span className="text-xs font-semibold uppercase tracking-wider">Assign</span>
+            </>
+          )}
+        </button>
+
+        {showAssignPopover && (
+          <div className="absolute top-full left-0 mt-2 w-56 bg-[#18181b] border border-zinc-700 shadow-xl rounded-lg overflow-hidden z-[100] flex flex-col">
+            <div className="p-2 border-b border-zinc-800">
+              <input
+                type="text"
+                placeholder="Search employee..."
+                className="w-full h-9 px-3 text-xs bg-[#0a0a0a] text-zinc-200 border border-zinc-800 rounded focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]"
+                value={assignSearch}
+                onChange={e => setAssignSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto p-1 flex flex-col">
+              {filteredEmployees.length === 0 ? (
+                <p className="text-xs text-zinc-500 p-3 text-center italic">No employees found.</p>
+              ) : filteredEmployees.map(emp => (
+                <button
+                  key={emp.id}
+                  onClick={() => toggleAssignee(emp.id)}
+                  className="flex items-center justify-between px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors w-full text-left"
+                >
+                  <span>{emp.name}</span>
+                  {selectedAssignees.includes(emp.id) && <CheckCircle2 className="w-3.5 h-3.5 text-[#d4af37]" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="w-12 shrink-0" />
-      <div className="w-40 shrink-0" />
-      <div className="w-24 shrink-0" />
+
+      {/* Priority picker */}
+      <div className="w-12 flex justify-center shrink-0 relative" ref={priorityRef}>
+        <button
+          onClick={() => setShowPriorityPopover(!showPriorityPopover)}
+          className="w-7 h-7 flex items-center justify-center hover:bg-zinc-800 rounded-md transition-colors"
+        >
+          <Flag className={`w-3.5 h-3.5 ${priority === 'urgent' ? 'text-red-500 fill-red-500/20' :
+            priority === 'high' ? 'text-amber-500 fill-amber-500/20' :
+              priority === 'medium' ? 'text-blue-500 fill-blue-500/20' :
+                priority === 'low' ? 'text-zinc-500 fill-zinc-500/20' :
+                  'text-white'
+            }`} />
+        </button>
+
+        {showPriorityPopover && (
+          <div className="absolute top-full right-0 mt-2 w-32 bg-[#18181b] border border-zinc-700 shadow-xl rounded-lg overflow-hidden z-[100] flex flex-col p-1">
+            <button onClick={() => { setPriority('urgent'); setShowPriorityPopover(false); }} className="flex items-center gap-2 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors">
+              <Flag className="w-3.5 h-3.5 text-red-500 fill-red-500/20 shrink-0" /> Urgent
+            </button>
+            <button onClick={() => { setPriority('high'); setShowPriorityPopover(false); }} className="flex items-center gap-2 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors">
+              <Flag className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20 shrink-0" /> High
+            </button>
+            <button onClick={() => { setPriority('medium'); setShowPriorityPopover(false); }} className="flex items-center gap-2 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors">
+              <Flag className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20 shrink-0" /> Normal
+            </button>
+            <button onClick={() => { setPriority('low'); setShowPriorityPopover(false); }} className="flex items-center gap-2 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-md transition-colors">
+              <Flag className="w-3.5 h-3.5 text-zinc-500 fill-zinc-500/20 shrink-0" /> Low
+            </button>
+            <div className="border-t border-zinc-800 my-1 font-sans mx-1" />
+            <button onClick={() => { setPriority('none'); setShowPriorityPopover(false); }} className="flex items-center gap-2 text-left px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 rounded-md transition-colors font-semibold">
+              <Ban className="w-3.5 h-3.5 shrink-0" /> Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Due date picker */}
+      <div className="w-40 flex justify-start shrink-0 relative px-2">
+        <div
+          onClick={() => {
+            try {
+              if (dateInputRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                dateInputRef.current.showPicker();
+              } else {
+                dateInputRef.current?.focus();
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${dueDate
+            ? 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500 text-zinc-300'
+            : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'
+            }`}
+        >
+          <Calendar className="w-3.5 h-3.5 shrink-0" />
+          <span className="text-xs font-medium truncate">
+            {dueDate ? formatDueDate(dueDate) : <span className="uppercase tracking-wider">Due Date</span>}
+          </span>
+        </div>
+        <input
+          type="date"
+          ref={dateInputRef}
+          value={dueDate || ''}
+          onChange={(e) => setDueDate(e.target.value || null)}
+          className="absolute opacity-0 w-px h-px overflow-hidden pointer-events-none"
+          style={{ right: '50%' }}
+        />
+      </div>
+
+      {/* Save / Cancel */}
+      <div className="w-24 shrink-0 flex items-center justify-center gap-1.5">
+        <button onClick={handleSave} className="px-3 py-1.5 text-[10px] uppercase tracking-widest font-semibold bg-[#d4af37] text-black hover:bg-[#b5952f] transition-colors rounded shadow-lg shadow-[#d4af37]/10">Save</button>
+        <button onClick={onCancel} className="px-2.5 py-1.5 text-[10px] uppercase tracking-widest font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors">✕</button>
+      </div>
     </div>
   );
 };
@@ -162,7 +339,7 @@ const TaskRow = ({
   task: Task,
   level?: number,
   employees: { id: string, name: string }[],
-  onAddSubtask: (parentId: string, name: string) => void,
+  onAddSubtask: (parentId: string, data: { name: string; assignees: string[]; priority: string; dueDate: string | null }) => void,
   onDeleteTask: (taskId: string) => void,
   onToggleAssign: (taskId: string, userId: string) => void,
   onChangeStatus: (taskId: string, status: string) => void,
@@ -410,8 +587,9 @@ const TaskRow = ({
           {isAddingMode && (
             <TaskInputRow
               level={level + 1}
-              onSave={(name) => {
-                if (name.trim()) onAddSubtask(task.id, name.trim());
+              employees={employees}
+              onSave={(data) => {
+                if (data.name.trim()) onAddSubtask(task.id, { ...data, name: data.name.trim() });
                 setIsAddingMode(false);
               }}
               onCancel={() => setIsAddingMode(false)}
@@ -446,20 +624,16 @@ export default function Projects() {
   const projectColors = ['#d4af37', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
 
   useEffect(() => {
+    if (user?.role === 'employee') return; // Employees don't need the full user list
     axiosInstance.get('/users?status=active').then(res => {
       setEmployees(res.data.data.map((u: any) => ({ id: u._id, name: u.fullName })));
     }).catch(console.error);
-  }, []);
+  }, [user]);
 
   const fetchProjects = async () => {
     try {
       const res = await axiosInstance.get('/projects');
       const projectsData = res.data.data;
-
-      let basicSelectedProjectId = selectedProjectId;
-      if (projectsData.length > 0 && !basicSelectedProjectId) {
-        basicSelectedProjectId = projectsData[0]._id;
-      }
 
       const basicProjects = projectsData.map((p: any, index: number) => ({
         id: p._id,
@@ -469,8 +643,8 @@ export default function Projects() {
       }));
       setProjects(basicProjects);
 
-      if (basicSelectedProjectId) {
-        setSelectedProjectId(basicSelectedProjectId);
+      if (projectsData.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projectsData[0]._id);
       }
     } catch (e) {
       console.error("Failed to load projects", e);
@@ -483,13 +657,13 @@ export default function Projects() {
     fetchProjects();
   }, []);
 
-  // Fetch tasks when project is selected
+  // Fetch tasks when switching to a new project (cache-aware)
   const [tasksLoading, setTasksLoading] = useState(false);
   const [hasFetchedTasks, setHasFetchedTasks] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!selectedProjectId) return;
-    if (hasFetchedTasks[selectedProjectId]) return; // Skip fetch if cached
+    if (hasFetchedTasks[selectedProjectId]) return; // Already cached
 
     let didCancel = false;
     const fetchSelectedTasks = async () => {
@@ -538,23 +712,29 @@ export default function Projects() {
     });
   };
 
-  const handleAddTask = async (projectId: string, parentId: string | null, name: string) => {
+  const handleAddTask = async (
+    projectId: string,
+    parentId: string | null,
+    data: { name: string; assignees: string[]; priority: string; dueDate: string | null }
+  ) => {
     try {
       const res = await axiosInstance.post('/tasks', {
-        name: name,
+        name: data.name,
         project: projectId,
         parentTask: parentId,
+        assignees: data.assignees,
+        priority: data.priority || 'none',
+        dueDate: data.dueDate || undefined,
         status: 'todo',
-        priority: 'none',
       });
       const newTask = res.data.data;
       const formattedSubtask: Task = {
         id: newTask._id,
         name: newTask.name,
         assignees: (newTask.assignees || []).map((a: any) => ({ id: a._id || a, name: a.fullName || a.name || '' })),
-        status: 'todo',
-        priority: 'none',
-        dueDate: null,
+        status: newTask.status || 'todo',
+        priority: newTask.priority || data.priority || 'none',
+        dueDate: newTask.dueDate || data.dueDate || null,
         subtasks: []
       };
 
@@ -846,7 +1026,7 @@ export default function Projects() {
                           key={t.id}
                           task={t}
                           employees={employees}
-                          onAddSubtask={(parentId, name) => { handleAddTask(selectedProject.id, parentId, name); }}
+                          onAddSubtask={(parentId, data) => { handleAddTask(selectedProject.id, parentId, data); }}
                           onDeleteTask={handleDeleteTask}
                           onToggleAssign={handleToggleAssign}
                           onChangeStatus={handleChangeStatus}
@@ -857,8 +1037,9 @@ export default function Projects() {
                       {isAddingRootTask && (
                         <TaskInputRow
                           level={0}
-                          onSave={(name) => {
-                            if (name.trim()) handleAddTask(selectedProject.id, null, name.trim());
+                          employees={employees}
+                          onSave={(data) => {
+                            if (data.name.trim()) handleAddTask(selectedProject.id, null, { ...data, name: data.name.trim() });
                             setIsAddingRootTask(false);
                           }}
                           onCancel={() => setIsAddingRootTask(false)}
