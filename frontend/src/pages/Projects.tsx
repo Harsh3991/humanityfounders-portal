@@ -20,12 +20,17 @@ interface Project {
   color: string;
 }
 
-// Helper to build a recursive task tree
+// Helper to build a recursive task tree — sorted oldest-first by createdAt
 function buildTaskTree(flatTasks: any[]): Task[] {
+  // Sort ascending by creation time so oldest tasks appear at the top
+  const sorted = [...flatTasks].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
   const taskMap = new Map<string, Task>();
   const roots: Task[] = [];
 
-  for (const t of flatTasks) {
+  for (const t of sorted) {
     taskMap.set(t._id, {
       id: t._id,
       name: t.name,
@@ -37,12 +42,12 @@ function buildTaskTree(flatTasks: any[]): Task[] {
     });
   }
 
-  for (const t of flatTasks) {
+  for (const t of sorted) {
     const task = taskMap.get(t._id)!;
     if (t.parentTask) {
       const parent = taskMap.get(t.parentTask);
       if (parent) {
-        parent.subtasks.push(task);
+        parent.subtasks.push(task); // subtasks also in creation order
       } else {
         roots.push(task);
       }
@@ -357,6 +362,7 @@ const TaskRow = ({
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [isAddingMode, setIsAddingMode] = useState(false);
 
+  // A task is overdue ONLY if it's not done and the current time is past the due date
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
 
   useEffect(() => {
@@ -433,8 +439,13 @@ const TaskRow = ({
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
 
-        <div className="flex-1 text-sm text-zinc-200 pr-4 truncate min-w-0 font-medium">
-          {task.name}
+        <div className="flex-1 flex items-center gap-2 pr-4 min-w-0">
+          <span className="text-sm text-zinc-200 font-medium truncate">{task.name}</span>
+          {isOverdue && (
+            <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0">
+              Overdue
+            </span>
+          )}
         </div>
 
         <div className="w-48 flex items-center justify-start shrink-0 relative" ref={assignRef}>
@@ -528,7 +539,7 @@ const TaskRow = ({
           )}
         </div>
 
-        <div className="w-[11.5rem] flex justify-start shrink-0 relative px-2">
+        <div className="w-36 flex justify-start shrink-0 relative px-1">
           <div
             onClick={() => {
               try {
@@ -541,13 +552,12 @@ const TaskRow = ({
                 console.error(e);
               }
             }}
-            className={`flex items-center w-full gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? (isOverdue ? 'bg-red-950/10 border border-red-900/40 hover:border-red-500/50' : 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500') : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? (isOverdue ? 'bg-red-950/10 border border-red-900/40 hover:border-red-500/50' : 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500') : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
           >
             <Calendar className={`w-3.5 h-3.5 shrink-0 ${isOverdue ? 'text-red-500' : task.dueDate ? 'text-zinc-400' : ''}`} />
-            <span className={`text-[11px] font-medium truncate flex-1 ${isOverdue ? 'text-red-400' : task.dueDate ? 'text-zinc-300' : ''}`}>
+            <span className={`text-[11px] font-medium whitespace-nowrap ${isOverdue ? 'text-red-400' : task.status === 'done' ? 'text-emerald-500/80' : task.dueDate ? 'text-zinc-300' : ''}`}>
               {task.dueDate ? formatDueDate(task.dueDate) : <span className="uppercase tracking-wider">Due Date</span>}
             </span>
-            {isOverdue && <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0 ml-auto">Overdue</span>}
           </div>
           <input
             type="date"
@@ -615,6 +625,9 @@ export default function Projects() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingProject, setIsSubmittingProject] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   const [taskFilters, setTaskFilters] = useState({
     status: 'all',
@@ -772,7 +785,8 @@ export default function Projects() {
   };
 
   const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
+    if (!newProjectName.trim() || isSubmittingProject) return;
+    setIsSubmittingProject(true);
     try {
       await axiosInstance.post('/projects', {
         name: newProjectName.trim(),
@@ -782,7 +796,31 @@ export default function Projects() {
       setNewProjectName('');
       setNewProjectDesc('');
       fetchProjects();
-    } catch (e) { }
+    } catch (e) {
+      console.error("Failed to create project", e);
+    } finally {
+      setIsSubmittingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete || isDeletingProject) return;
+    setIsDeletingProject(true);
+    const deletedId = projectToDelete.id;
+    try {
+      await axiosInstance.delete(`/projects/${deletedId}`);
+      // Optimistically remove from state
+      setProjects(prev => prev.filter(p => p.id !== deletedId));
+      if (selectedProjectId === deletedId) {
+        setSelectedProjectId(null);
+      }
+      setProjectToDelete(null);
+    } catch (e) {
+      console.error("Failed to delete project", e);
+      fetchProjects(); // Re-fetch on error
+    } finally {
+      setIsDeletingProject(false);
+    }
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -920,14 +958,25 @@ export default function Projects() {
           {projects.length === 0 ? (
             <p className="text-sm text-zinc-600 px-2 italic">No projects found.</p>
           ) : projects.map(p => (
-            <button
+            <div
               key={p.id}
-              onClick={() => setSelectedProjectId(p.id)}
-              className={`w-full text-left px-4 py-3 rounded-lg text-sm flex items-center gap-3 transition-all duration-200 ${selectedProjectId === p.id ? 'bg-[#d4af37]/10 text-[#d4af37] font-medium ring-1 ring-[#d4af37]/30' : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'}`}
+              className={`group w-full flex items-center gap-1 rounded-lg transition-all duration-200 ${selectedProjectId === p.id ? 'bg-[#d4af37]/10 ring-1 ring-[#d4af37]/30' : 'hover:bg-zinc-800/40'}`}
             >
-              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color, boxShadow: `0 0 8px ${p.color}40` }} />
-              <span className="truncate">{p.name}</span>
-            </button>
+              <button
+                onClick={() => setSelectedProjectId(p.id)}
+                className={`flex-1 text-left px-4 py-3 text-sm flex items-center gap-3 transition-all duration-200 min-w-0 ${selectedProjectId === p.id ? 'text-[#d4af37] font-medium' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color, boxShadow: `0 0 8px ${p.color}40` }} />
+                <span className="truncate">{p.name}</span>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setProjectToDelete({ id: p.id, name: p.name }); }}
+                className="opacity-0 group-hover:opacity-100 p-1.5 mr-2 hover:bg-red-950/40 text-zinc-600 hover:text-red-400 rounded transition-all duration-200 shrink-0"
+                title="Delete project"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -1005,7 +1054,7 @@ export default function Projects() {
                   <div className="flex-1 pl-[2.25rem]">Task Name</div>
                   <div className="w-48 text-left pl-2 shrink-0">Assignee</div>
                   <div className="w-12 text-center shrink-0">Pri</div>
-                  <div className="w-40 text-left pl-2 shrink-0">Due Date</div>
+                  <div className="w-36 text-left pl-2 shrink-0">Due Date</div>
                   <div className="w-24 text-center shrink-0">Actions</div>
                 </div>
 
@@ -1063,6 +1112,52 @@ export default function Projects() {
         )}
       </div>
 
+      {/* Delete Project Confirmation Modal */}
+      {projectToDelete && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181b] w-full max-w-sm border border-red-900/30 shadow-2xl rounded-xl overflow-hidden mx-4 animate-in fade-in zoom-in-95 duration-200">
+            {/* Red accent bar */}
+            <div className="h-1 bg-gradient-to-r from-red-800 via-red-600 to-red-800" />
+            <div className="p-6">
+              {/* Icon */}
+              <div className="w-12 h-12 rounded-full bg-red-950/50 border border-red-900/40 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-light text-zinc-100 text-center mb-2">Delete Project</h3>
+              <p className="text-sm text-zinc-400 text-center mb-1">
+                Are you sure you want to delete
+              </p>
+              <p className="text-sm font-semibold text-red-400 text-center mb-4 truncate px-4">
+                &ldquo;{projectToDelete.name}&rdquo;
+              </p>
+              <p className="text-xs text-zinc-500 text-center mb-6 leading-relaxed">
+                This will permanently delete the project and <span className="text-zinc-300 font-medium">all associated tasks</span>. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setProjectToDelete(null)}
+                  disabled={isDeletingProject}
+                  className="flex-1 px-4 py-2.5 text-xs uppercase tracking-widest font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  disabled={isDeletingProject}
+                  className={`flex-1 px-4 py-2.5 text-xs uppercase tracking-widest font-semibold bg-red-700 text-white hover:bg-red-600 rounded-md transition-colors flex items-center justify-center gap-2 ${isDeletingProject ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  {isDeletingProject ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+                  ) : (
+                    <><Trash2 className="w-3.5 h-3.5" /> Delete Project</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Project Modal */}
       {showAddProjectModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -1093,7 +1188,9 @@ export default function Projects() {
             </div>
             <div className="p-5 border-t border-zinc-800 flex justify-end gap-3 bg-[#0a0a0a]/50">
               <button onClick={() => setShowAddProjectModal(false)} className="px-5 py-2.5 text-xs uppercase tracking-widest font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">Cancel</button>
-              <button onClick={handleCreateProject} className="px-5 py-2.5 text-xs uppercase tracking-widest bg-[#d4af37] text-black rounded-md font-semibold hover:bg-[#b5952f] transition-colors shadow-lg shadow-[#d4af37]/10">Create Project</button>
+              <button onClick={handleCreateProject} disabled={isSubmittingProject} className={`px-5 py-2.5 text-xs uppercase tracking-widest bg-[#d4af37] text-black rounded-md font-semibold hover:bg-[#b5952f] transition-colors shadow-lg shadow-[#d4af37]/10 ${isSubmittingProject ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {isSubmittingProject ? 'Creating...' : 'Create Project'}
+              </button>
             </div>
           </div>
         </div>

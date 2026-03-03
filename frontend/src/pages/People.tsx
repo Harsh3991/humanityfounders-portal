@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../lib/axiosInstance';
-import { Plus, Search, X, Loader2, AlertTriangle, Users, ArrowRight, FileText, CheckCircle2, LayoutDashboard, Clock, FileBadge, Eye, FolderKanban, ListChecks, CalendarDays, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, FileCheck, Shield, Activity, Timer, Briefcase, ClipboardList } from 'lucide-react';
+import { Plus, Search, X, Loader2, AlertTriangle, Users, ArrowRight, FileText, CheckCircle2, LayoutDashboard, Clock, FileBadge, Eye, EyeOff, FolderKanban, ListChecks, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, LogIn, LogOut, Coffee, FileCheck, Shield, Activity, Timer, Briefcase, ClipboardList } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -49,6 +49,7 @@ export default function People() {
   const [worklogMonth, setWorklogMonth] = useState(new Date().getMonth() + 1);
   const [worklogYear, setWorklogYear] = useState(new Date().getFullYear());
   const [worklogSection, setWorklogSection] = useState<'overview' | 'projects' | 'tasks' | 'attendance' | 'audit'>('overview');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Add Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -58,6 +59,29 @@ export default function People() {
 
   // Delete Confirm State
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Sensitive field reveal state — track which fields are currently shown
+  const [revealedFields, setRevealedFields] = useState<Record<string, boolean>>({});
+
+  const toggleReveal = (field: string) =>
+    setRevealedFields(prev => ({ ...prev, [field]: !prev[field] }));
+
+  // Reset revealed fields when a new profile is opened
+  const resetRevealedFields = () => setRevealedFields({});
+
+  // Ref for closing the date picker popover on outside click
+  const datePickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showDatePicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(e.target as Node)) {
+        setShowDatePicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDatePicker]);
 
   useEffect(() => {
     fetchEmployees();
@@ -89,6 +113,7 @@ export default function People() {
       setPanelMode('overview');
       setOverviewTab('personal');
       setLoadingProfile(true);
+      resetRevealedFields(); // Hide sensitive data when switching profiles
 
       // Parallelize fetches to avoid waterfall delay
       const [uRes, tasksRes, attRes] = await Promise.all([
@@ -608,22 +633,73 @@ export default function People() {
                               </div>
                               <div>
                                 <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Bank Name</p>
-                                <p className="text-sm font-medium text-zinc-200">
-                                  {selected.bank || <span className="text-zinc-600 italic">Not provided</span>}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-zinc-200 flex-1">
+                                    {selected.bank
+                                      ? revealedFields['bankName']
+                                        ? selected.bank
+                                        : '••••••••'
+                                      : <span className="text-zinc-600 italic">Not provided</span>}
+                                  </p>
+                                  {selected.bank && (
+                                    <button
+                                      onClick={() => toggleReveal('bankName')}
+                                      className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-[#d4af37] transition-colors"
+                                      title={revealedFields['bankName'] ? 'Hide' : 'Reveal'}
+                                    >
+                                      {revealedFields['bankName']
+                                        ? <EyeOff className="w-3.5 h-3.5" />
+                                        : <Eye className="w-3.5 h-3.5" />}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Account Number</p>
-                                  <p className="text-sm font-medium text-zinc-200 font-mono">
-                                    {selected.accountNo ? `•••• ${selected.accountNo.slice(-4)}` : <span className="text-zinc-600 italic">Not provided</span>}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-zinc-200 font-mono flex-1">
+                                      {selected.accountNo
+                                        ? revealedFields['accountNo']
+                                          ? selected.accountNo
+                                          : `•••• ${selected.accountNo.slice(-4)}`
+                                        : <span className="text-zinc-600 italic">Not provided</span>}
+                                    </p>
+                                    {selected.accountNo && (
+                                      <button
+                                        onClick={() => toggleReveal('accountNo')}
+                                        className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-[#d4af37] transition-colors"
+                                        title={revealedFields['accountNo'] ? 'Hide account number' : 'Reveal account number'}
+                                      >
+                                        {revealedFields['accountNo']
+                                          ? <EyeOff className="w-3.5 h-3.5" />
+                                          : <Eye className="w-3.5 h-3.5" />}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div>
                                   <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">IFSC Code</p>
-                                  <p className="text-sm font-medium text-zinc-200 font-mono uppercase">
-                                    {selected.ifscCode || <span className="text-zinc-600 italic">Not provided</span>}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-medium text-zinc-200 font-mono uppercase flex-1">
+                                      {selected.ifscCode
+                                        ? revealedFields['ifscCode']
+                                          ? selected.ifscCode
+                                          : `${selected.ifscCode.slice(0, 4)}••••••`
+                                        : <span className="text-zinc-600 italic">Not provided</span>}
+                                    </p>
+                                    {selected.ifscCode && (
+                                      <button
+                                        onClick={() => toggleReveal('ifscCode')}
+                                        className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-[#d4af37] transition-colors"
+                                        title={revealedFields['ifscCode'] ? 'Hide IFSC' : 'Reveal IFSC'}
+                                      >
+                                        {revealedFields['ifscCode']
+                                          ? <EyeOff className="w-3.5 h-3.5" />
+                                          : <Eye className="w-3.5 h-3.5" />}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -696,16 +772,85 @@ export default function People() {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        {/* Month Navigator */}
+                        {/* Month / Year Navigator */}
                         <div className="flex items-center justify-between bg-[#18181b] border border-zinc-800/60 rounded-xl px-5 py-3">
-                          <button onClick={() => handleWorklogMonthChange('prev')} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200">
+                          <button
+                            onClick={() => handleWorklogMonthChange('prev')}
+                            className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200"
+                          >
                             <ChevronLeft className="w-4 h-4" />
                           </button>
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="w-4 h-4 text-[#d4af37]" />
-                            <span className="text-sm font-semibold text-zinc-200 tracking-wide">{MONTH_NAMES[worklogMonth - 1]} {worklogYear}</span>
+
+                          {/* Clickable label → opens floating popover */}
+                          <div className="relative" ref={datePickerRef}>
+                            <button
+                              onClick={() => setShowDatePicker(p => !p)}
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors group"
+                            >
+                              <CalendarDays className="w-4 h-4 text-[#d4af37]" />
+                              <span className="text-sm font-semibold text-zinc-200 tracking-wide group-hover:text-[#d4af37] transition-colors">
+                                {MONTH_NAMES[worklogMonth - 1]} {worklogYear}
+                              </span>
+                              <ChevronDown className={`w-3 h-3 text-zinc-500 transition-transform duration-200 ${showDatePicker ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {/* Floating Popover */}
+                            {showDatePicker && (
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[150] w-56 bg-[#18181b] border border-zinc-700/60 rounded-xl shadow-2xl shadow-black/60 overflow-hidden">
+                                {/* Year selector row */}
+                                <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800/60">
+                                  <button
+                                    onClick={() => {
+                                      const y = worklogYear - 1;
+                                      setWorklogYear(y);
+                                    }}
+                                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                                  >
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="text-xs font-bold text-zinc-100 tracking-widest">{worklogYear}</span>
+                                  <button
+                                    onClick={() => {
+                                      const y = worklogYear + 1;
+                                      setWorklogYear(y);
+                                    }}
+                                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                                  >
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* 4×3 month grid */}
+                                <div className="grid grid-cols-4 gap-1 p-2">
+                                  {MONTH_NAMES.map((m, idx) => {
+                                    const active = idx + 1 === worklogMonth;
+                                    return (
+                                      <button
+                                        key={m}
+                                        onClick={() => {
+                                          const newMonth = idx + 1;
+                                          setWorklogMonth(newMonth);
+                                          setShowDatePicker(false);
+                                          if (selected) fetchWorklog(selected.id, newMonth, worklogYear);
+                                        }}
+                                        className={`py-1.5 text-[11px] font-semibold rounded-md transition-all duration-150 ${active
+                                          ? 'bg-[#d4af37] text-black shadow-sm shadow-[#d4af37]/30'
+                                          : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100'
+                                          }`}
+                                      >
+                                        {m}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <button onClick={() => handleWorklogMonthChange('next')} className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200">
+
+                          <button
+                            onClick={() => handleWorklogMonthChange('next')}
+                            className="p-1.5 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-200"
+                          >
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
