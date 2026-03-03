@@ -72,11 +72,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">
-              Demo: admin@humanityfounders.com · employee@humanityfounders.com · new@humanityfounders.com
-            </p>
-          </div>
         </div>
       </div>
     </div>
