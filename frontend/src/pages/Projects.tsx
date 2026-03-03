@@ -283,7 +283,7 @@ const TaskInputRow = ({
       </div>
 
       {/* Due date picker */}
-      <div className="w-40 flex justify-start shrink-0 relative px-2">
+      <div className="w-[11.5rem] flex justify-start shrink-0 relative px-2">
         <div
           onClick={() => {
             try {
@@ -356,6 +356,8 @@ const TaskRow = ({
   const priorityRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [isAddingMode, setIsAddingMode] = useState(false);
+
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
 
   useEffect(() => {
     if (!showAssignPopover && !showStatusPopover && !showPriorityPopover) return;
@@ -526,7 +528,7 @@ const TaskRow = ({
           )}
         </div>
 
-        <div className="w-40 flex justify-start shrink-0 relative px-2">
+        <div className="w-[11.5rem] flex justify-start shrink-0 relative px-2">
           <div
             onClick={() => {
               try {
@@ -539,12 +541,13 @@ const TaskRow = ({
                 console.error(e);
               }
             }}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500 text-zinc-300' : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
+            className={`flex items-center w-full gap-2 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? (isOverdue ? 'bg-red-950/10 border border-red-900/40 hover:border-red-500/50' : 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500') : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
           >
-            <Calendar className="w-3.5 h-3.5 shrink-0" />
-            <span className="text-xs font-medium truncate">
+            <Calendar className={`w-3.5 h-3.5 shrink-0 ${isOverdue ? 'text-red-500' : task.dueDate ? 'text-zinc-400' : ''}`} />
+            <span className={`text-[11px] font-medium truncate flex-1 ${isOverdue ? 'text-red-400' : task.dueDate ? 'text-zinc-300' : ''}`}>
               {task.dueDate ? formatDueDate(task.dueDate) : <span className="uppercase tracking-wider">Due Date</span>}
             </span>
+            {isOverdue && <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0 ml-auto">Overdue</span>}
           </div>
           <input
             type="date"

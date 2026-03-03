@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2, ListTodo, AlertTriangle } from 'lucide-react';
 import axiosInstance from '../lib/axiosInstance';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -52,6 +52,7 @@ export default function Attendance() {
   const month = currentDate.getMonth();
 
   const [overrideLoading, setOverrideLoading] = useState(false);
+  const [errorPopup, setErrorPopup] = useState<string | null>(null);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -123,6 +124,18 @@ export default function Attendance() {
 
   const handleAdminOverride = async (day: number, status: 'present' | 'absent') => {
     if (!isAdmin || !selectedEmployeeId) return;
+
+    const entry = historyByDay[day];
+    if (entry) {
+      if (status === 'present' && entry.attendanceStatus.startsWith('present')) {
+        setErrorPopup("This employee is already marked present for this date.");
+        return;
+      }
+      if (status === 'absent' && entry.attendanceStatus === 'absent') {
+        setErrorPopup("This employee is already marked absent for this date.");
+        return;
+      }
+    }
 
     // Safely format local YYYY-MM-DD without UTC conversion backward-drift
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -453,6 +466,27 @@ export default function Attendance() {
           </aside>
         </main>
       </div>
+
+      {/* Error Popup */}
+      {errorPopup && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#18181b] w-full max-w-sm border border-red-900/40 shadow-2xl rounded-xl overflow-hidden flex flex-col items-center p-8 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-full bg-red-950/40 border border-red-900/50 flex items-center justify-center mb-6">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-light text-zinc-100 mb-3">Action Not Required</h3>
+            <p className="text-sm text-zinc-400 mb-8 leading-relaxed">
+              {errorPopup}
+            </p>
+            <button
+              onClick={() => setErrorPopup(null)}
+              className="w-full px-4 py-3 text-xs uppercase tracking-widest rounded-md font-semibold hover:bg-zinc-800 transition-colors text-zinc-300 border border-zinc-700 hover:border-zinc-500"
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
     </div >
   );
 }
