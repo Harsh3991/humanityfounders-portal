@@ -275,56 +275,82 @@ export default function People() {
     e.department.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Inline styles for the "Etched Metal" look
+  const brushedMetalBg = {
+    backgroundColor: '#0f0f0f',
+    backgroundImage: `linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), 
+                      linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px)`,
+    backgroundSize: '20px 20px'
+  };
+
+  const goldTextGradient = {
+    background: 'linear-gradient(to bottom, #fcf6ba 0%, #d4af37 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent'
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-10 text-zinc-300 font-sans">
+    <div className="max-w-7xl mx-auto space-y-10 pb-16 text-zinc-400 font-sans selection:bg-[#d4af37]/30">
 
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-800/50 pb-6">
-        <div>
-          <h1 className="text-3xl font-light text-zinc-100">Directory</h1>
-          <p className="text-sm text-zinc-500 mt-2 tracking-wide uppercase">Manage Personnel & Roles</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-10 border-b border-zinc-800/50">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-serif italic tracking-tight pb-1 leading-normal" style={goldTextGradient}>Directory</h1>
+          <div className="flex items-center gap-4">
+            <div className="h-[1px] w-12 bg-[#d4af37]/40" />
+            <p className="text-[10px] uppercase tracking-[0.4em] font-bold text-zinc-500">Manage Personnel & Roles</p>
+          </div>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 text-xs uppercase tracking-widest font-semibold bg-[#d4af37] text-black rounded-md hover:bg-[#b5952f] transition-all duration-300 shadow-lg shadow-[#d4af37]/10 shrink-0"
+          className="relative group overflow-hidden px-10 py-4 bg-gradient-to-b from-[#d4af37] to-[#aa8a2e] text-black text-[11px] font-bold uppercase tracking-[0.2em] rounded-sm transition-all hover:shadow-[0_0_25px_rgba(212,175,55,0.3)] shrink-0"
         >
-          <Plus className="w-4 h-4" /> Add Employee
+          <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+          <div className="flex items-center gap-2 relative z-10">
+            <Plus className="w-4 h-4 stroke-[3]" /> Add Employee
+          </div>
         </button>
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl shadow-xl overflow-hidden flex flex-col min-h-[500px]">
+      <div
+        style={brushedMetalBg}
+        className="border border-zinc-800/80 rounded-sm shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col min-h-[600px]"
+      >
 
         {/* Search Bar */}
-        <div className="p-4 border-b border-zinc-800/50 bg-[#0a0a0a]/30">
-          <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <div className="p-8 bg-black/40 backdrop-blur-xl border-b border-zinc-800/60 flex items-center justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d4af37]/50" />
             <input
-              placeholder="Search by name or department..."
+              placeholder="Search directory..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#0a0a0a] border border-zinc-800 text-zinc-200 text-sm rounded-lg pl-11 pr-4 py-3 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] transition-colors placeholder:text-zinc-600"
+              className="w-full bg-zinc-950/50 border border-zinc-800 text-zinc-200 text-sm rounded-sm pl-12 pr-4 py-4 focus:outline-none focus:border-[#d4af37]/40 transition-all placeholder:text-zinc-700 font-light"
             />
+          </div>
+          <div className="text-[10px] text-zinc-600 font-bold tracking-widest uppercase italic hidden sm:block">
+            Displaying {filtered.length} active records
           </div>
         </div>
 
         {/* Table */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-sm text-left whitespace-nowrap">
+          <table className="w-full text-sm text-left border-separate border-spacing-0">
             <thead>
-              <tr className="border-b border-zinc-800/80 bg-[#0a0a0a]/50">
-                <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Name</th>
-                <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Role</th>
-                <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Department</th>
-                <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Status</th>
-                <th className="px-6 py-4 text-right text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Actions</th>
+              <tr className="bg-black/20">
+                {['Name', 'Role', 'Department', 'Status', 'Actions'].map((head) => (
+                  <th key={head} className="px-10 py-6 text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-black border-b border-zinc-800/80">
+                    {head}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/40">
+            <tbody className="divide-y divide-zinc-900/50">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#d4af37] mx-auto opacity-70" />
+                  <td colSpan={5} className="py-32 text-center">
+                    <Loader2 className="w-10 h-10 animate-spin text-[#d4af37]/40 mx-auto" />
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
@@ -335,21 +361,33 @@ export default function People() {
                   </td>
                 </tr>
               ) : filtered.map((e) => (
-                <tr key={e.id} className="hover:bg-zinc-800/20 transition-colors group">
-                  <td className="px-6 py-4 text-zinc-200 font-medium">{e.name}</td>
-                  <td className="px-6 py-4 text-zinc-400 uppercase tracking-widest text-[10px] font-semibold">{e.role}</td>
-                  <td className="px-6 py-4 text-zinc-400 text-xs">{e.department}</td>
-                  <td className="px-6 py-4">
-                    <span className={`text-[10px] px-2.5 py-1 rounded-md uppercase tracking-widest font-semibold border ${STATUS_STYLES[e.status]}`}>
+                <tr key={e.id} className="group hover:bg-[#d4af37]/[0.02] transition-colors">
+                  <td className="px-10 py-6">
+                    <div
+                      onClick={() => handleSelect(e.id)}
+                      className="flex items-center gap-4 cursor-pointer group/name"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[#d4af37] font-serif italic text-lg shadow-inner group-hover/name:border-[#d4af37]/50 transition-colors">
+                        {e.name.charAt(0)}
+                      </div>
+                      <span className="text-zinc-200 font-medium tracking-wide group-hover/name:text-[#d4af37] transition-colors">{e.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-10 py-6">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{e.role}</span>
+                  </td>
+                  <td className="px-10 py-6 text-zinc-500 italic font-light">{e.department}</td>
+                  <td className="px-10 py-6">
+                    <span className={`text-[9px] px-3 py-1 rounded-full uppercase tracking-tighter font-bold border ${STATUS_STYLES[e.status]}`}>
                       {e.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-10 py-6 text-right">
                     <button
                       onClick={() => handleSelect(e.id)}
-                      className="text-xs uppercase tracking-widest text-[#d4af37] hover:text-[#b5952f] font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-zinc-600 hover:text-[#d4af37] transition-all"
                     >
-                      View Profile
+                      View Profile <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                     </button>
                   </td>
                 </tr>
@@ -518,77 +556,135 @@ export default function People() {
                     </div>
 
                     {overviewTab === 'personal' ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Personal Snapshot */}
-                        <div className="bg-[#18181b] border border-zinc-800/60 shadow-xl rounded-xl p-6 flex flex-col justify-center">
-                          <div className="flex items-center gap-3 mb-4">
-                            <Users className="w-5 h-5 text-zinc-500" />
-                            <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold">Contact & Status</h4>
-                          </div>
-                          <p className="text-sm font-medium text-zinc-200 truncate mb-1">{selected.email}</p>
-                          <p className="text-xs text-zinc-500 font-mono mb-6">{selected.phone || 'No phone set'}</p>
-                          <div className="mt-auto">
-                            <span className={`text-[10px] px-2.5 py-1 rounded-md uppercase tracking-widest font-semibold border ${STATUS_STYLES[selected.status]}`}>
-                              {selected.status}
-                            </span>
+                      <div className="space-y-6 pb-12">
+                        {/* Identity & Role Container */}
+                        <div className="bg-[#18181b] border border-zinc-800/60 shadow-xl rounded-xl p-6 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-[#d4af37]/5 rounded-bl-full pointer-events-none" />
+                          <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold mb-6 flex items-center gap-3 border-b border-zinc-800/60 pb-3">
+                            <Users className="w-4 h-4" /> Identity & Role
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-y-8 gap-x-6">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Full Name</p>
+                              <p className="text-sm font-medium text-zinc-200">{selected.name}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Email</p>
+                              <p className="text-sm font-medium text-zinc-200">{selected.email}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Phone</p>
+                              <p className="text-sm font-medium text-zinc-200">{selected.phone || <span className="text-zinc-600 italic">Not provided</span>}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Role</p>
+                              <p className="text-sm font-semibold text-zinc-200 uppercase tracking-widest">{selected.role}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Department</p>
+                              <p className="text-sm font-medium text-zinc-200">{selected.department}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">System Status</p>
+                              <span className={`text-[10px] px-2.5 py-1 rounded-md uppercase tracking-widest font-semibold border ${STATUS_STYLES[selected.status]} inline-block mt-0.5`}>
+                                {selected.status}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Compliance & Documents */}
-                        <div className="space-y-4">
-                          <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Compliance & Forms</h4>
-                          <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5 shadow-xl space-y-4">
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-[#0a0a0a] border border-zinc-800/80">
-                              <div className="flex items-center gap-3">
-                                <FileBadge className="w-5 h-5 text-[#d4af37]" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Confidential & Financial */}
+                          <div className="bg-[#18181b] border border-zinc-800/60 shadow-xl rounded-xl p-6">
+                            <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold mb-6 flex items-center gap-3 border-b border-zinc-800/60 pb-3">
+                              <Shield className="w-4 h-4" /> Confidential Details
+                            </h4>
+                            <div className="space-y-6">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Start Date</p>
+                                <p className="text-sm font-medium text-zinc-200">
+                                  {selected.startDate ? formatDate(selected.startDate) : <span className="text-zinc-600 italic">Not set</span>}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Bank Name</p>
+                                <p className="text-sm font-medium text-zinc-200">
+                                  {selected.bank || <span className="text-zinc-600 italic">Not provided</span>}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <p className="text-sm font-medium text-zinc-200">Aadhaar Card</p>
-                                  <p className="text-xs text-zinc-500 font-mono mt-0.5">{selected.onboarding?.aadhaarCard?.fileName || 'Not uploaded'}</p>
+                                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Account Number</p>
+                                  <p className="text-sm font-medium text-zinc-200 font-mono">
+                                    {selected.accountNo ? `•••• ${selected.accountNo.slice(-4)}` : <span className="text-zinc-600 italic">Not provided</span>}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">IFSC Code</p>
+                                  <p className="text-sm font-medium text-zinc-200 font-mono uppercase">
+                                    {selected.ifscCode || <span className="text-zinc-600 italic">Not provided</span>}
+                                  </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                {selected.onboarding?.aadhaarCard?.fileName ? (
-                                  <>
-                                    <button type="button" onClick={() => handleViewDocument('aadhaarCard')} className="p-1.5 text-zinc-400 hover:text-[#d4af37] hover:bg-zinc-800 rounded transition-colors" title="View Document">
-                                      <Eye className="w-4 h-4 cursor-pointer" />
-                                    </button>
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold bg-amber-950/40 px-2 py-1 rounded">Pending</span>
-                                )}
-                              </div>
                             </div>
+                          </div>
 
-                            <div className="flex items-center justify-between p-3 rounded-lg bg-[#0a0a0a] border border-zinc-800/80">
-                              <div className="flex items-center gap-3">
-                                <FileText className="w-5 h-5 text-[#d4af37]" />
-                                <div>
-                                  <p className="text-sm font-medium text-zinc-200">PAN Card</p>
-                                  <p className="text-xs text-zinc-500 font-mono mt-0.5">{selected.onboarding?.panCard?.fileName || 'Not uploaded'}</p>
+                          {/* Compliance & Documents */}
+                          <div className="space-y-4">
+                            <h4 className="text-xs uppercase tracking-widest font-semibold text-zinc-100 pl-1">Compliance & Forms</h4>
+                            <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5 shadow-xl space-y-4">
+                              <div className="flex items-center justify-between p-3 rounded-lg bg-[#0a0a0a] border border-zinc-800/80">
+                                <div className="flex items-center gap-3">
+                                  <FileBadge className="w-5 h-5 text-[#d4af37]" />
+                                  <div>
+                                    <p className="text-sm font-medium text-zinc-200">Aadhaar Card</p>
+                                    <p className="text-xs text-zinc-500 font-mono mt-0.5">{selected.onboarding?.aadhaarCard?.fileName || 'Not uploaded'}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {selected.onboarding?.aadhaarCard?.fileName ? (
+                                    <>
+                                      <button type="button" onClick={() => handleViewDocument('aadhaarCard')} className="p-1.5 text-zinc-400 hover:text-[#d4af37] hover:bg-zinc-800 rounded transition-colors" title="View Document">
+                                        <Eye className="w-4 h-4 cursor-pointer" />
+                                      </button>
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold bg-amber-950/40 px-2 py-1 rounded">Pending</span>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                {selected.onboarding?.panCard?.fileName ? (
-                                  <>
-                                    <button type="button" onClick={() => handleViewDocument('panCard')} className="p-1.5 text-zinc-400 hover:text-[#d4af37] hover:bg-zinc-800 rounded transition-colors" title="View Document">
-                                      <Eye className="w-4 h-4 cursor-pointer" />
-                                    </button>
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                  </>
+
+                              <div className="flex items-center justify-between p-3 rounded-lg bg-[#0a0a0a] border border-zinc-800/80">
+                                <div className="flex items-center gap-3">
+                                  <FileText className="w-5 h-5 text-[#d4af37]" />
+                                  <div>
+                                    <p className="text-sm font-medium text-zinc-200">PAN Card</p>
+                                    <p className="text-xs text-zinc-500 font-mono mt-0.5">{selected.onboarding?.panCard?.fileName || 'Not uploaded'}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {selected.onboarding?.panCard?.fileName ? (
+                                    <>
+                                      <button type="button" onClick={() => handleViewDocument('panCard')} className="p-1.5 text-zinc-400 hover:text-[#d4af37] hover:bg-zinc-800 rounded transition-colors" title="View Document">
+                                        <Eye className="w-4 h-4 cursor-pointer" />
+                                      </button>
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold bg-amber-950/40 px-2 py-1 rounded">Pending</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between px-3 pt-3 pb-1">
+                                <span className="text-xs text-zinc-400">Digital Declaration</span>
+                                {selected.onboarding?.declarationAccepted ? (
+                                  <span className="text-xs text-emerald-400 font-medium">Signed ({new Date(selected.onboarding.declarationDate).toLocaleDateString()})</span>
                                 ) : (
-                                  <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold bg-amber-950/40 px-2 py-1 rounded">Pending</span>
+                                  <span className="text-xs text-zinc-600 font-medium">Unsigned</span>
                                 )}
                               </div>
-                            </div>
-
-                            <div className="flex items-center justify-between px-3 pt-3 pb-1">
-                              <span className="text-xs text-zinc-400">Digital Declaration</span>
-                              {selected.onboarding?.declarationAccepted ? (
-                                <span className="text-xs text-emerald-400 font-medium">Signed ({new Date(selected.onboarding.declarationDate).toLocaleDateString()})</span>
-                              ) : (
-                                <span className="text-xs text-zinc-600 font-medium">Unsigned</span>
-                              )}
                             </div>
                           </div>
                         </div>

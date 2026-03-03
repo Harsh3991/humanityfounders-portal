@@ -6,6 +6,21 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import axiosInstance from '../lib/axiosInstance';
 
+const formatFileName = (name: string) => {
+  if (!name) return '';
+  if (name.length <= 25) return name;
+
+  const lastDotIndex = name.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    return name.substring(0, 20) + '.....';
+  }
+
+  const ext = name.substring(lastDotIndex);
+  const baseName = name.substring(0, lastDotIndex);
+
+  return baseName.substring(0, 15) + '.....' + ext;
+};
+
 export default function Onboarding() {
   const { completeOnboarding } = useAuth();
   const [step, setStep] = useState(1);
@@ -120,7 +135,7 @@ export default function Onboarding() {
                       onChange={e => setAadhaarFile(e.target.files ? e.target.files[0] : null)}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <p className="text-sm text-foreground">{aadhaarFile ? aadhaarFile.name : <span className="text-muted-foreground">Click to upload or drag & drop</span>}</p>
+                    <p className="text-sm text-foreground" title={aadhaarFile?.name}>{aadhaarFile ? formatFileName(aadhaarFile.name) : <span className="text-muted-foreground">Click to upload or drag & drop</span>}</p>
                   </div>
                 </div>
                 <div className="space-y-2 relative">
@@ -132,7 +147,7 @@ export default function Onboarding() {
                       onChange={e => setPanFile(e.target.files ? e.target.files[0] : null)}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <p className="text-sm text-foreground">{panFile ? panFile.name : <span className="text-muted-foreground">Click to upload or drag & drop</span>}</p>
+                    <p className="text-sm text-foreground" title={panFile?.name}>{panFile ? formatFileName(panFile.name) : <span className="text-muted-foreground">Click to upload or drag & drop</span>}</p>
                   </div>
                 </div>
               </div>
@@ -167,7 +182,7 @@ export default function Onboarding() {
                   className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                 />
                 <label htmlFor="agree" className="text-sm text-foreground cursor-pointer">
-                  I Agree to the terms and conditions
+                  I Agree to the terms and conditions and have read the <a href="https://www.notion.so/ventures-hq/Welcome-Aboard-Folks-274ae870acf580bf987fd37c6e389c4c" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Onboarding Guide</a>.
                 </label>
               </div>
 

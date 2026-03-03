@@ -18,7 +18,7 @@ interface TaskItem {
   overdue: boolean;
 }
 
-const DEPARTMENTS = ['All', 'Engineering', 'Design', 'QA', 'Management', 'Sales'];
+
 
 const PRIORITY_STYLES: Record<string, string> = {
   none: 'text-zinc-500 border-zinc-800 bg-[#18181b]/50',
@@ -39,7 +39,7 @@ export default function TaskOversight() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('All');
+
   const [loading, setLoading] = useState(true);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [taskFilters, setTaskFilters] = useState({
@@ -95,7 +95,6 @@ export default function TaskOversight() {
   }, [selectedId]);
 
   const filtered = employees.filter((e) => {
-    if (deptFilter !== 'All' && e.department !== deptFilter) return false;
     if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -133,20 +132,7 @@ export default function TaskOversight() {
             />
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {DEPARTMENTS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDeptFilter(d)}
-                className={`whitespace-nowrap px-3 py-1.5 text-[10px] uppercase tracking-widest rounded-full border transition-all duration-200 font-semibold ${deptFilter === d
-                  ? 'bg-[#d4af37]/10 border-[#d4af37]/50 text-[#d4af37]'
-                  : 'border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
-                  }`}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
+
         </div>
 
         {/* Scrollable Employee List */}
