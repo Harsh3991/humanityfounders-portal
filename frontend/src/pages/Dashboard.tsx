@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full';
+type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full' | 'working';
 
 interface TimeSession {
   status: 'clocked-in' | 'away' | 'clocked-out' | 'absent';
@@ -43,6 +43,7 @@ const STATUS_CONFIG: Record<AttendanceStatus, { label: string; colorClass: strin
   'present-light': { label: '<4 Hrs', colorClass: 'text-emerald-500/70 border-emerald-900/30 bg-emerald-950/20' },
   'present-medium': { label: '4-6 Hrs', colorClass: 'text-emerald-400 border-emerald-800/60 bg-emerald-900/30' },
   'present-full': { label: '7+ Hrs', colorClass: 'text-emerald-400 border-emerald-700 bg-emerald-900/50' },
+  'working': { label: 'Working', colorClass: 'text-yellow-500 border-yellow-800/60 bg-yellow-900/30' },
 };
 
 function getDisplaySeconds(session: TimeSession | null): number {
@@ -64,6 +65,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [totalPresent, setTotalPresent] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [taskFilters, setTaskFilters] = useState({
     status: 'none', // using 'none' to mean "All Active" by default or something? wait, we can just do 'all'
@@ -78,7 +80,7 @@ export default function Dashboard() {
           axiosInstance.get('/attendance/today').catch(() => null),
           axiosInstance.get('/projects').catch(() => null),
           axiosInstance.get('/tasks/my-tasks').catch(() => null),
-          axiosInstance.get('/attendance/history').catch(() => null),
+          axiosInstance.get(`/attendance/history?t=${Date.now()}`).catch(() => null),
           user?.role === 'admin' ? axiosInstance.get('/attendance/admin/status').catch(() => null) : Promise.resolve(null)
         ];
 
@@ -119,7 +121,7 @@ export default function Dashboard() {
             return {
               date: localDate,
               totalSeconds: h.activeSeconds || 0,
-              attendanceStatus: h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0),
+              attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' : (h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0)),
               summary: h.dailyReport || 'No update provided',
               clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
               clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
@@ -134,6 +136,8 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Dashboard fetch error", err);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchDashboardData();
@@ -191,6 +195,11 @@ export default function Dashboard() {
       setUpdateError('Please fill in your daily update before clocking out');
       return;
     }
+    const wordCount = dailyUpdate.trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount > 100) {
+      setUpdateError(`Report exceeds 100 words (currently ${wordCount} words). Please shorten it.`);
+      return;
+    }
     try {
       await axiosInstance.post('/attendance/clock-out', { dailyReport: dailyUpdate.trim() });
     } catch (err) { }
@@ -206,7 +215,7 @@ export default function Dashboard() {
     // Re-fetch history from the API to get accurate, server-side data
     // This avoids timezone/duplicate issues from optimistic updates
     try {
-      const histRes = await axiosInstance.get('/attendance/history');
+      const histRes = await axiosInstance.get(`/attendance/history?t=${Date.now()}`);
       const dataArray = histRes?.data?.data?.records;
       if (histRes?.data?.success && Array.isArray(dataArray)) {
         const formattedHistory: AttendanceEntry[] = dataArray.map((h: any) => {
@@ -215,7 +224,7 @@ export default function Dashboard() {
           return {
             date: localDate,
             totalSeconds: h.activeSeconds || 0,
-            attendanceStatus: h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0),
+            attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' as AttendanceStatus : (h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0)),
             summary: h.dailyReport || 'No update provided',
             clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
             clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
@@ -233,17 +242,43 @@ export default function Dashboard() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    let present = 0;
-    let absent = 0;
+    const historyByDay: Record<number, AttendanceEntry> = {};
 
     history.forEach(entry => {
       const entryDate = new Date(entry.date);
       if (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) {
-        if (entry.attendanceStatus === 'absent') {
-          absent++;
-        } else {
-          present++;
-        }
+        historyByDay[entryDate.getDate()] = entry;
+      }
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iterDate = new Date(currentYear, currentMonth, d);
+      if (iterDate.getDay() === 0) continue; // Skip Sundays
+      if (!historyByDay[d] && iterDate < today) {
+        historyByDay[d] = {
+          date: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          totalSeconds: 0,
+          attendanceStatus: 'absent' as AttendanceStatus,
+          summary: 'No update provided',
+          clockIn: 0,
+          clockOut: 0
+        };
+      }
+    }
+
+    let present = 0;
+    let absent = 0;
+
+    Object.values(historyByDay).forEach(entry => {
+      if (entry.attendanceStatus === 'absent') {
+        absent++;
+      } else {
+        present++;
       }
     });
 
@@ -260,7 +295,55 @@ export default function Dashboard() {
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const todayEntry = history.find((e) => e.date === todayStr);
-  const recentHistory = history.slice(0, 7);
+
+  const recentActivities = useMemo(() => {
+    const activities: any[] = [];
+    const sortedHistory = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Regex: split only at newlines that are immediately followed by a [time]: marker
+    // This keeps multi-line report content (bullet lists etc.) together as one session
+    const SESSION_SPLIT = /\n(?=\[\d{1,2}:\d{2}:\d{2}\s+(?:am|pm)\]:)/i;
+
+    sortedHistory.forEach(entry => {
+      // Skip today's working entry if no report submitted yet
+      if (entry.attendanceStatus === 'working' && entry.summary === 'No update provided') return;
+
+      // Derive status purely from hours worked
+      const hoursStatus: AttendanceStatus =
+        entry.attendanceStatus === 'absent' ? 'absent' : getAttendanceStatus(entry.totalSeconds);
+      const statusLabel = STATUS_CONFIG[hoursStatus].label;
+      const statusColor = STATUS_CONFIG[hoursStatus].colorClass;
+
+      if (entry.attendanceStatus === 'absent') {
+        activities.push({
+          date: entry.date,
+          hours: entry.totalSeconds,
+          status: statusLabel,
+          statusColor,
+          summary: 'Absent'
+        });
+        return;
+      }
+
+      const sessions = entry.summary && entry.summary !== 'No update provided'
+        ? entry.summary.split(SESSION_SPLIT).filter(s => s.trim())
+        : [];
+
+      if (sessions.length === 0) return;
+
+      sessions.forEach((session) => {
+        activities.push({
+          date: entry.date,
+          hours: entry.totalSeconds,
+          status: statusLabel,
+          statusColor,
+          summary: session.trim()
+        });
+      });
+    });
+
+    return activities.slice(0, 10);
+  }, [history]);
 
   const filteredTasks = tasks.filter(t => {
     let match = true;
@@ -278,6 +361,15 @@ export default function Dashboard() {
     }
     return match;
   });
+
+  if (isLoading) {
+    return (
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-6 bg-[#0a0a0a] rounded-xl border border-zinc-800/50 font-sans">
+        <div className="w-10 h-10 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest font-semibold">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-10 text-zinc-300 font-sans">
@@ -362,9 +454,19 @@ export default function Dashboard() {
             </DialogHeader>
             <div className="space-y-5 py-4">
               <div>
-                <label className="text-xs uppercase tracking-widest text-zinc-400 mb-2 block">
-                  Work Summary <span className="text-red-500">*</span>
-                </label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs uppercase tracking-widest text-zinc-400">
+                    Work Summary <span className="text-red-500">*</span>
+                  </label>
+                  <span className={`text-xs font-mono tabular-nums ${dailyUpdate.trim().split(/\s+/).filter(Boolean).length > 100
+                    ? 'text-red-400'
+                    : dailyUpdate.trim().split(/\s+/).filter(Boolean).length > 80
+                      ? 'text-amber-400'
+                      : 'text-zinc-500'
+                    }`}>
+                    {dailyUpdate.trim() ? dailyUpdate.trim().split(/\s+/).filter(Boolean).length : 0} / 100 words
+                  </span>
+                </div>
                 <Textarea
                   value={dailyUpdate}
                   onChange={(e) => { setDailyUpdate(e.target.value); setUpdateError(''); }}
@@ -490,7 +592,7 @@ export default function Dashboard() {
       )}
 
       {/* Attendance History */}
-      {recentHistory.length > 0 && (
+      {recentActivities.length > 0 && (
         <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
           <div className="flex items-center gap-3 mb-6">
             <History className="w-5 h-5 text-[#d4af37]" />
@@ -507,16 +609,29 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/40">
-                {recentHistory.map((entry, i) => (
-                  <tr key={`${entry.date}-${i}`} className="hover:bg-zinc-800/20 transition-colors">
-                    <td className="py-3 px-2 text-zinc-300 font-mono text-xs">{entry.date}</td>
-                    <td className="py-3 px-2 text-zinc-300 font-mono text-xs tabular-nums">{formatTime(entry.totalSeconds)}</td>
-                    <td className="py-3 px-2">
-                      <span className={`text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-md border font-medium ${STATUS_CONFIG[entry.attendanceStatus].colorClass}`}>
-                        {STATUS_CONFIG[entry.attendanceStatus].label}
+                {recentActivities.map((activity, i) => (
+                  <tr key={`${activity.date}-${i}`} className="hover:bg-zinc-800/20 transition-colors">
+                    <td className="py-3 px-2 text-zinc-300 font-mono text-xs whitespace-nowrap">{activity.date}</td>
+                    <td className="py-3 px-2 text-zinc-300 font-mono text-xs tabular-nums">{formatTime(activity.hours)}</td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className={`text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-md border font-medium ${activity.statusColor}`}>
+                        {activity.status}
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-zinc-400 max-w-[250px] truncate text-xs">{entry.summary}</td>
+                    <td className="py-3 px-2 text-zinc-400 text-xs leading-relaxed max-w-md">
+                      {typeof activity.summary === 'string' && activity.summary.match(/^\[(.*?)\s+(am|pm|AM|PM)\]:\s*(.*)/i) ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] text-[#d4af37]/70 font-mono tracking-wider">
+                            {activity.summary.match(/^\[(.*?)\]:/)?.[1]}
+                          </span>
+                          <span className="text-zinc-300">
+                            {activity.summary.replace(/^\[.*?\]:\s*/, '')}
+                          </span>
+                        </div>
+                      ) : (
+                        activity.summary
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
