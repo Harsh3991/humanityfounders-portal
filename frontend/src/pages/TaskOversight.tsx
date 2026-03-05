@@ -103,11 +103,9 @@ export default function TaskOversight() {
 
   if (loading) {
     return (
-      <div className="h-[calc(100vh-8rem)] flex items-center justify-center bg-[#0a0a0a] rounded-xl border border-zinc-800/50">
-        <div className="flex flex-col items-center gap-4 animate-pulse text-zinc-500">
-          <ClipboardList className="w-10 h-10 text-[#d4af37] opacity-80" />
-          <p className="font-medium tracking-widest uppercase text-xs">Loading Directory...</p>
-        </div>
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-6 bg-[#0a0a0a] rounded-xl border border-zinc-800/50 font-sans">
+        <div className="w-10 h-10 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest font-semibold">Loading oversight...</p>
       </div>
     );
   }

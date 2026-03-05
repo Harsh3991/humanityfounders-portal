@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2, ListTodo, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, CalendarDays, User as UserIcon, CheckCircle, XCircle, Loader2, ListTodo, AlertTriangle, RefreshCw } from 'lucide-react';
 import axiosInstance from '../lib/axiosInstance';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full';
+type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full' | 'working';
 
 interface AttendanceEntry {
   date: string;
@@ -44,6 +44,8 @@ export default function Attendance() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedDayDetail, setSelectedDayDetail] = useState<{ dailyReport: string; activeSeconds: number; status: string } | null>(null);
+  const [isDayDetailLoading, setIsDayDetailLoading] = useState(false);
   const [history, setHistory] = useState<AttendanceEntry[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -53,6 +55,17 @@ export default function Attendance() {
 
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Auto-refresh every 60s when on the current month
+  useEffect(() => {
+    const now = new Date();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+    if (!isCurrentMonth) return;
+    const interval = setInterval(() => setRefreshTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, [year, month]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -84,9 +97,9 @@ export default function Attendance() {
       let res;
       if (isAdmin) {
         if (!selectedEmployeeId) return;
-        res = await axiosInstance.get(`/attendance/admin/${selectedEmployeeId}/history`);
+        res = await axiosInstance.get(`/attendance/admin/${selectedEmployeeId}/history?month=${month + 1}&year=${year}&t=${Date.now()}`);
       } else {
-        res = await axiosInstance.get(`/attendance/history`);
+        res = await axiosInstance.get(`/attendance/history?month=${month + 1}&year=${year}&t=${Date.now()}`);
       }
 
       const dataArray = res?.data?.data?.records;
@@ -98,7 +111,7 @@ export default function Attendance() {
           return {
             date: safeLocalString,
             totalSeconds: h.activeSeconds || 0,
-            attendanceStatus: h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0),
+            attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' : (h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0)),
             summary: h.dailyReport || 'No update provided',
             clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
             clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
@@ -114,13 +127,50 @@ export default function Attendance() {
       setHistory([]);
     } finally {
       setIsLoadingHistory(false);
+      setInitialLoading(false);
     }
-  }, [isAdmin, selectedEmployeeId]);
+  }, [isAdmin, selectedEmployeeId, refreshTick]);
 
+  // 3. Fetch single day detail fresh from DB when a day is clicked
+  const fetchDayDetail = useCallback(async (day: number) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setIsDayDetailLoading(true);
+    setSelectedDayDetail(null);
+    try {
+      let res;
+      if (isAdmin && selectedEmployeeId) {
+        res = await axiosInstance.get(`/attendance/admin/${selectedEmployeeId}/day/${dateStr}?t=${Date.now()}`);
+      } else {
+        res = await axiosInstance.get(`/attendance/day/${dateStr}?t=${Date.now()}`);
+      }
+      if (res?.data?.success && res.data.data) {
+        setSelectedDayDetail({
+          dailyReport: res.data.data.dailyReport || '',
+          activeSeconds: res.data.data.activeSeconds || 0,
+          status: res.data.data.status || 'absent',
+        });
+      } else {
+        setSelectedDayDetail({ dailyReport: '', activeSeconds: 0, status: 'absent' });
+      }
+    } catch {
+      setSelectedDayDetail({ dailyReport: '', activeSeconds: 0, status: 'absent' });
+    } finally {
+      setIsDayDetailLoading(false);
+    }
+  }, [isAdmin, selectedEmployeeId, year, month]);
+
+  // Trigger history fetch when month/year/employee changes; reset day selection
   useEffect(() => {
     fetchHistory();
     setSelectedDay(null);
+    setSelectedDayDetail(null);
   }, [fetchHistory, month, year]);
+
+  // Re-fetch day detail when employee changes (admin)
+  useEffect(() => {
+    setSelectedDay(null);
+    setSelectedDayDetail(null);
+  }, [selectedEmployeeId]);
 
   const handleAdminOverride = async (day: number, status: 'present' | 'absent') => {
     if (!isAdmin || !selectedEmployeeId) return;
@@ -163,8 +213,29 @@ export default function Attendance() {
         map[d.getDate()] = entry;
       }
     });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Backfill past days as 'absent' if they have no entry
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iterDate = new Date(year, month, d);
+      if (iterDate.getDay() === 0) continue; // Skip Sundays
+      if (!map[d] && iterDate < today) {
+        map[d] = {
+          date: `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+          totalSeconds: 0,
+          attendanceStatus: 'absent',
+          summary: 'No update provided',
+          clockIn: 0,
+          clockOut: 0,
+          isAdminOverride: false
+        };
+      }
+    }
+
     return map;
-  }, [history, year, month]);
+  }, [history, year, month, daysInMonth]);
 
   // Calculate stats for Summary Widget
   const stats = useMemo(() => {
@@ -193,6 +264,15 @@ export default function Attendance() {
 
   const selectedEntry = selectedDay ? historyByDay[selectedDay] : null;
   const isSundaySelection = selectedDay ? new Date(year, month, selectedDay).getDay() === 0 : false;
+
+  if (initialLoading) {
+    return (
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-6 bg-[#0a0a0a] rounded-xl border border-zinc-800/50 font-sans">
+        <div className="w-10 h-10 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest font-semibold">Loading attendance...</p>
+      </div>
+    );
+  }
 
   return (
     // Matte black global background container wrapper
@@ -249,24 +329,34 @@ export default function Attendance() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between w-full sm:w-auto sm:gap-6 bg-[#18181b] rounded-xl p-1.5 border border-zinc-800/60 shadow-lg shrink-0">
-                <button
-                  onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-                  className="p-2 rounded-lg hover:bg-zinc-800 text-yellow-500 transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-2 px-2 sm:px-4">
-                  <CalendarDays className="w-4 h-4 text-yellow-500/70" />
-                  <h2 className="text-yellow-500 font-heading text-lg md:text-xl tracking-wide w-32 md:w-40 text-center uppercase">
-                    {monthName} {year}
-                  </h2>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between w-full sm:w-auto sm:gap-6 bg-[#18181b] rounded-xl p-1.5 border border-zinc-800/60 shadow-lg shrink-0">
+                  <button
+                    onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
+                    className="p-2 rounded-lg hover:bg-zinc-800 text-yellow-500 transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="flex items-center gap-2 px-2 sm:px-4">
+                    <CalendarDays className="w-4 h-4 text-yellow-500/70" />
+                    <h2 className="text-yellow-500 font-heading text-lg md:text-xl tracking-wide w-32 md:w-40 text-center uppercase">
+                      {monthName} {year}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
+                    className="p-2 rounded-lg hover:bg-zinc-800 text-yellow-500 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
                 </div>
                 <button
-                  onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-                  className="p-2 rounded-lg hover:bg-zinc-800 text-yellow-500 transition-colors"
+                  onClick={() => setRefreshTick(t => t + 1)}
+                  title="Refresh attendance data"
+                  className={`p-2 rounded-lg bg-[#18181b] border border-zinc-800/60 text-yellow-500 hover:bg-zinc-800 transition-colors shadow-lg ${isLoadingHistory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isLoadingHistory}
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
                 </button>
               </div>
             </header>
@@ -306,6 +396,9 @@ export default function Attendance() {
                     if (entry.attendanceStatus === 'absent') {
                       bgClass = "bg-rose-950/80 hover:bg-rose-900 border-rose-900/30 cursor-pointer";
                       textClass = "text-rose-300";
+                    } else if (entry.attendanceStatus === 'working') {
+                      bgClass = "bg-yellow-900/40 hover:bg-yellow-800/60 border border-yellow-700/50 cursor-pointer text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.15)]";
+                      textClass = "text-yellow-500 font-bold animate-pulse";
                     } else if (entry.attendanceStatus === 'present-light') {
                       bgClass = "bg-[#ecf3a4] hover:bg-[#dce38a] border-none cursor-pointer"; // 1-3 Hours (Almost yellow)
                       textClass = "text-stone-900 font-bold";
@@ -321,7 +414,12 @@ export default function Attendance() {
                   return (
                     <button
                       key={day}
-                      onClick={() => !isSunday && setSelectedDay(day)}
+                      onClick={() => {
+                        if (!isSunday) {
+                          setSelectedDay(day);
+                          fetchDayDetail(day);
+                        }
+                      }}
                       title={entry ? Object.keys(entry).map(k => k === "totalSeconds" ? formatTime(entry[k]) : "").filter(a => a).join('') : ""}
                       className={`group aspect-square rounded-[8px] p-2.5 sm:p-3 flex items-start justify-start transition-all duration-200 outline-none
                                  ${bgClass} ${isSelected ? '!ring-2 !ring-yellow-500 ring-offset-2 ring-offset-[#18181b] scale-[1.05] shadow-lg z-10' : ''}`}
@@ -338,43 +436,72 @@ export default function Attendance() {
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-900" /> 7+ Hrs</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> 4-6 Hrs</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-[#ecf3a4]" /> 1-3 Hrs</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-600 animate-pulse" /> Working</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-950 border border-rose-900" /> Absent</span>
             </div>
 
-            {/* Daily Report for Selected Date */}
-            {selectedDay && !isSundaySelection && selectedEntry && (
+            {/* Daily Report for Selected Date — always fetched fresh from DB */}
+            {selectedDay && !isSundaySelection && (
               <div className="mt-8 bg-[#18181b] p-6 rounded-2xl border border-zinc-800/60 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
                 <h3 className="text-yellow-500 font-heading text-xl mb-5 uppercase tracking-widest flex items-center gap-3 border-b border-zinc-800 pb-4">
                   <ListTodo className="w-5 h-5" /> Daily Report
+                  <span className="ml-auto text-[10px] text-zinc-500 font-sans font-normal normal-case tracking-normal">
+                    {year}-{String(month + 1).padStart(2, '0')}-{String(selectedDay).padStart(2, '0')}
+                  </span>
                 </h3>
-                <div className="space-y-4">
-                  {selectedEntry.summary && selectedEntry.summary !== 'No update provided' ? (
-                    <div className="space-y-3">
-                      {selectedEntry.summary.split('\n').filter(line => line.trim()).map((line, idx) => {
-                        const match = line.match(/^\[(.*?)\]:\s*(.*)/);
-                        if (match) {
-                          return (
-                            <div key={idx} className="bg-zinc-900/40 rounded-xl p-4 border border-zinc-800 flex flex-col gap-1.5 hover:border-yellow-500/30 transition-colors">
-                              <span className="text-[10px] text-yellow-500/70 font-mono font-bold uppercase tracking-widest">{match[1]}</span>
-                              <span className="text-zinc-300 text-sm leading-relaxed">{match[2]}</span>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div key={idx} className="bg-zinc-900/40 rounded-xl p-4 border border-zinc-800 flex flex-col hover:border-yellow-500/30 transition-colors">
-                              <span className="text-zinc-300 text-sm leading-relaxed">{line}</span>
-                            </div>
-                          );
-                        }
-                      })}
-                    </div>
-                  ) : (
-                    <div className="py-6 text-center text-zinc-500 flex flex-col items-center gap-3 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800/60">
-                      <ListTodo className="w-8 h-8 opacity-20" />
-                      <span className="text-sm font-medium">No daily report submitted for this date</span>
-                    </div>
-                  )}
-                </div>
+                {isDayDetailLoading ? (
+                  <div className="py-8 flex flex-col items-center gap-3 text-zinc-500">
+                    <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
+                    <span className="text-sm">Loading report...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedDayDetail && selectedDayDetail.dailyReport && selectedDayDetail.dailyReport.trim() ? (
+                      <div className="space-y-3">
+                        {(() => {
+                          // Split only at newlines immediately before a [time]: marker
+                          // so that multi-line report content stays as one session block
+                          const SESSION_SPLIT = /\n(?=\[\d{1,2}:\d{2}:\d{2}\s+(?:am|pm)\]:)/i;
+                          const sessions = selectedDayDetail.dailyReport
+                            .split(SESSION_SPLIT)
+                            .map(s => s.trim())
+                            .filter(s => s);
+
+                          return sessions.map((session, idx) => {
+                            // First line may be the [time]: header
+                            const firstNewline = session.indexOf('\n');
+                            const firstLine = firstNewline === -1 ? session : session.slice(0, firstNewline);
+                            const rest = firstNewline === -1 ? '' : session.slice(firstNewline + 1).trim();
+                            const timeMatch = firstLine.match(/^\[(.*?)\]:\s*(.*)/);
+
+                            if (timeMatch) {
+                              return (
+                                <div key={idx} className="bg-zinc-900/40 rounded-xl p-4 border border-zinc-800 flex flex-col gap-1.5 hover:border-yellow-500/30 transition-colors">
+                                  <span className="text-[10px] text-yellow-500/70 font-mono font-bold uppercase tracking-widest">
+                                    {timeMatch[1]}
+                                  </span>
+                                  <span className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">
+                                    {timeMatch[2]}{rest ? '\n' + rest : ''}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={idx} className="bg-zinc-900/40 rounded-xl p-4 border border-zinc-800 flex flex-col hover:border-yellow-500/30 transition-colors">
+                                <span className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">{session}</span>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center text-zinc-500 flex flex-col items-center gap-3 bg-zinc-900/20 rounded-xl border border-dashed border-zinc-800/60">
+                        <ListTodo className="w-8 h-8 opacity-20" />
+                        <span className="text-sm font-medium">No daily report submitted for this date</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -423,7 +550,7 @@ export default function Attendance() {
                       <span className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">Status Recorded</span>
                       <span className={`text-xs uppercase tracking-widest font-bold px-2.5 py-1 rounded ${selectedEntry.attendanceStatus === 'absent'
                         ? 'bg-rose-950/50 text-rose-400 border border-rose-900/30'
-                        : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/30'
+                        : selectedEntry.attendanceStatus === 'working' ? 'bg-yellow-950/50 text-yellow-500 border border-yellow-900/30' : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/30'
                         }`}>
                         {selectedEntry.attendanceStatus.split('-')[0]}
                       </span>

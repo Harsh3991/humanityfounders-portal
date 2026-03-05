@@ -640,7 +640,7 @@ export default function Projects() {
   const projectColors = ['#d4af37', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
 
   useEffect(() => {
-    if (user?.role === 'employee') return; // Employees don't need the full user list
+    if (!user) return;
     axiosInstance.get('/users?status=active').then(res => {
       setEmployees(res.data.data.map((u: any) => ({ id: u._id, name: u.fullName })));
     }).catch(console.error);
@@ -939,8 +939,12 @@ export default function Projects() {
   const filteredTasks = selectedProject ? filterTopLevelTasks(selectedProject.tasks, taskFilters) : [];
 
   if (isLoading) {
-    // Return empty structural state immediately instead of a full loading screen
-    // This allows the sidebars and headers to render instantly while data populates.
+    return (
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-6 bg-[#0a0a0a] rounded-xl border border-zinc-800/50 font-sans">
+        <div className="w-10 h-10 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest font-semibold">Loading projects...</p>
+      </div>
+    );
   }
 
   return (

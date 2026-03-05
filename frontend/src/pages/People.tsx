@@ -53,6 +53,8 @@ export default function People() {
 
   // Add Modal State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditAccountNo, setShowEditAccountNo] = useState(false);
   const [addForm, setAddForm] = useState({ fullName: '', email: '', password: '', role: 'employee', department: 'Engineering' });
   const [addingError, setAddingError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -242,6 +244,7 @@ export default function People() {
     try {
       await axiosInstance.post('/auth/register', addForm);
       setShowAddModal(false);
+      setShowAddPassword(false);
       setAddForm({ fullName: '', email: '', password: '', role: 'employee', department: 'Engineering' });
       fetchEmployees();
     } catch (err: any) {
@@ -313,6 +316,15 @@ export default function People() {
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent'
   };
+
+  if (loading) {
+    return (
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-6 bg-[#0a0a0a] rounded-xl border border-zinc-800/50 font-sans">
+        <div className="w-10 h-10 border-2 border-[#d4af37] border-t-transparent rounded-full animate-spin" />
+        <p className="text-zinc-500 text-sm uppercase tracking-widest font-semibold">Loading directory...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-10 pb-16 text-zinc-400 font-sans selection:bg-[#d4af37]/30">
@@ -525,7 +537,22 @@ export default function People() {
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">Account Number</label>
-                        <input type="password" placeholder="Leave empty if not updating" className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 placeholder:text-zinc-600 transition-colors" value={editForm.accountNo || ''} onChange={e => setEditForm({ ...editForm, accountNo: e.target.value })} />
+                        <div className="relative">
+                          <input
+                            type={showEditAccountNo ? "text" : "password"}
+                            placeholder="Leave empty if not updating"
+                            className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 pr-10 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 placeholder:text-zinc-600 transition-colors"
+                            value={editForm.accountNo || ''}
+                            onChange={e => setEditForm({ ...editForm, accountNo: e.target.value })}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowEditAccountNo(!showEditAccountNo)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-[#d4af37] transition-colors"
+                          >
+                            {showEditAccountNo ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
                       </div>
                       <div>
                         <label className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 block">IFSC Code</label>
@@ -1256,7 +1283,24 @@ export default function People() {
 
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5 font-semibold">Initial Password</label>
-                <input required minLength={8} type="password" value={addForm.password} onChange={e => setAddForm({ ...addForm, password: e.target.value })} className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 placeholder:text-zinc-600 transition-colors" placeholder="Min 8 characters" />
+                <div className="relative">
+                  <input
+                    required
+                    minLength={8}
+                    type={showAddPassword ? "text" : "password"}
+                    value={addForm.password}
+                    onChange={e => setAddForm({ ...addForm, password: e.target.value })}
+                    className="w-full text-sm bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 pr-10 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] text-zinc-200 placeholder:text-zinc-600 transition-colors"
+                    placeholder="Min 8 characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-[#d4af37] transition-colors"
+                  >
+                    {showAddPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
