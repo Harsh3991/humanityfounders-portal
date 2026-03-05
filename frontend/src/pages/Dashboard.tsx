@@ -196,8 +196,8 @@ export default function Dashboard() {
       return;
     }
     const wordCount = dailyUpdate.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount > 100) {
-      setUpdateError(`Report exceeds 100 words (currently ${wordCount} words). Please shorten it.`);
+    if (wordCount < 100) {
+      setUpdateError(`Report must be at least 100 words (currently ${wordCount} words). Please provide more detail.`);
       return;
     }
     try {
@@ -458,13 +458,11 @@ export default function Dashboard() {
                   <label className="text-xs uppercase tracking-widest text-zinc-400">
                     Work Summary <span className="text-red-500">*</span>
                   </label>
-                  <span className={`text-xs font-mono tabular-nums ${dailyUpdate.trim().split(/\s+/).filter(Boolean).length > 100
+                  <span className={`text-xs font-mono tabular-nums ${dailyUpdate.trim().split(/\s+/).filter(Boolean).length < 100
                     ? 'text-red-400'
-                    : dailyUpdate.trim().split(/\s+/).filter(Boolean).length > 80
-                      ? 'text-amber-400'
-                      : 'text-zinc-500'
+                    : 'text-emerald-400'
                     }`}>
-                    {dailyUpdate.trim() ? dailyUpdate.trim().split(/\s+/).filter(Boolean).length : 0} / 100 words
+                    {dailyUpdate.trim() ? dailyUpdate.trim().split(/\s+/).filter(Boolean).length : 0} / 100 words (min)
                   </span>
                 </div>
                 <Textarea
