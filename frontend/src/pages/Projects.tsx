@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../lib/axiosInstance';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Loader2, CheckCircle2, Flag, Ban, Calendar } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Loader2, CheckCircle2, Flag, Ban, Calendar, Pencil } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -154,41 +154,66 @@ const TaskInputRow = ({
     );
   };
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSave = () => {
-    onSave({ name, assignees: selectedAssignees, priority, dueDate });
+    const trimmedName = name.trim();
+    if (trimmedName.length < 20) {
+      setError('Task name must be at least 20 characters');
+      return;
+    }
+    if (trimmedName.length > 150) {
+      setError('Task name cannot exceed 150 characters');
+      return;
+    }
+    onSave({ name: trimmedName, assignees: selectedAssignees, priority, dueDate });
+    setError(null);
   };
 
   return (
     <div
-      className={`flex items-center py-2.5 px-3 bg-[#d4af37]/[0.03] border-b border-zinc-800/40 last:border-0 ring-1 ring-[#d4af37]/20 ${showAssignPopover ? 'relative z-50' : ''}`}
+      className={`flex items-start py-3 px-3 bg-[#d4af37]/[0.03] border-b border-zinc-800/40 last:border-0 ring-1 ring-[#d4af37]/20 ${showAssignPopover ? 'relative z-50' : ''}`}
       style={{ paddingLeft: `calc(${level * 1.5 + 1}rem + 8px)` }}
     >
       {/* Status placeholder */}
-      <div className="relative mr-1.5 flex items-center justify-center shrink-0">
+      <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5">
         <div className="w-5 h-5 flex items-center justify-center">
           <div className="w-3.5 h-3.5 rounded-full border-[2px] border-zinc-500 border-dotted" />
         </div>
       </div>
 
       {/* Chevron placeholder */}
-      <div className="w-5 h-5 flex items-center justify-center mr-3 text-zinc-600 shrink-0">
+      <div className="w-5 h-5 flex items-center justify-center mr-3 text-zinc-600 shrink-0 mt-0.5">
         <ChevronRight className="w-4 h-4 opacity-50" />
       </div>
 
       {/* Name input */}
-      <div className="flex-1 text-sm text-zinc-200 pr-4 min-w-0">
+      <div className="w-[450px] text-sm text-zinc-200 pr-4 shrink-0 flex flex-col">
         <input
           autoFocus
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (error) setError(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSave();
             if (e.key === 'Escape') onCancel();
           }}
-          placeholder="Task name..."
-          className="w-full bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-zinc-600 font-medium"
+          placeholder="Task name (20-150 characters)..."
+          className={`w-full bg-transparent border-none focus:outline-none focus:ring-0 placeholder:text-zinc-600 font-medium py-0.5 ${error ? 'text-red-400' : ''}`}
+          maxLength={150}
         />
+        <div className="flex items-center justify-between w-full pr-4 mt-1 mb-1">
+          {error ? (
+            <span className="text-[10px] text-red-500 font-medium">{error}</span>
+          ) : (
+            <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+              {name.length < 20 ? `${20 - name.length} more chars needed` : `${150 - name.length} chars remaining`}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Assignee picker */}
@@ -288,7 +313,7 @@ const TaskInputRow = ({
       </div>
 
       {/* Due date picker */}
-      <div className="w-[11.5rem] flex justify-start shrink-0 relative px-2">
+      <div className="w-36 flex justify-start shrink-0 relative px-2">
         <div
           onClick={() => {
             try {
@@ -339,7 +364,13 @@ const TaskRow = ({
   onToggleAssign,
   onChangeStatus,
   onChangePriority,
-  onChangeDueDate
+  onChangeDueDate,
+  onChangeName,
+  parentId = null,
+  onDragStartReorder,
+  onDragOverReorder,
+  onDropReorder,
+  onDragEndReorder
 }: {
   task: Task,
   level?: number,
@@ -349,7 +380,13 @@ const TaskRow = ({
   onToggleAssign: (taskId: string, userId: string) => void,
   onChangeStatus: (taskId: string, status: string) => void,
   onChangePriority: (taskId: string, priority: string) => void,
-  onChangeDueDate: (taskId: string, dueDate: string | null) => void
+  onChangeDueDate: (taskId: string, dueDate: string | null) => void,
+  onChangeName: (taskId: string, newName: string) => void,
+  parentId?: string | null,
+  onDragStartReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
+  onDragOverReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
+  onDropReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
+  onDragEndReorder: (e: React.DragEvent) => void
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [showAssignPopover, setShowAssignPopover] = useState(false);
@@ -362,8 +399,19 @@ const TaskRow = ({
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [isAddingMode, setIsAddingMode] = useState(false);
 
-  // A task is overdue ONLY if it's not done and the current time is past the due date
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editName, setEditName] = useState(task.name);
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // A task is overdue ONLY if it's not done and the due date has passed (ignoring time)
+  const isOverdue = (() => {
+    if (!task.dueDate || task.status === 'done') return false;
+    const due = new Date(task.dueDate);
+    due.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due < today;
+  })();
 
   useEffect(() => {
     if (!showAssignPopover && !showStatusPopover && !showPriorityPopover) return;
@@ -384,13 +432,42 @@ const TaskRow = ({
 
   const filteredEmployees = employees.filter(e => e.name.toLowerCase().includes(assignSearch.toLowerCase()));
 
+  const handleNameSave = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed.length >= 20 && trimmed.length <= 150 && trimmed !== task.name) {
+      onChangeName(task.id, trimmed);
+    } else {
+      setEditName(task.name);
+    }
+    setIsEditingName(false);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleNameSave();
+    if (e.key === 'Escape') {
+      setEditName(task.name);
+      setIsEditingName(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditingName) {
+      editInputRef.current?.focus();
+    }
+  }, [isEditingName]);
+
   return (
     <div className={`flex flex-col ${showAssignPopover ? 'relative z-50' : ''}`}>
       <div
-        className="flex items-center group py-3 px-3 hover:bg-zinc-800/20 transition-colors border-b border-zinc-800/40 last:border-0"
+        draggable
+        onDragStart={(e) => onDragStartReorder(e, task.id, parentId || null)}
+        onDragOver={(e) => onDragOverReorder(e, task.id, parentId || null)}
+        onDrop={(e) => onDropReorder(e, task.id, parentId || null)}
+        onDragEnd={onDragEndReorder}
+        className="flex items-start group py-3 px-3 hover:bg-zinc-800/20 transition-colors border-b border-zinc-800/40 last:border-0 cursor-grab active:cursor-grabbing"
         style={{ paddingLeft: `calc(${level * 1.5 + 1}rem + 8px)` }}
       >
-        <div className="relative mr-1.5 flex items-center justify-center shrink-0" ref={statusRef}>
+        <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5" ref={statusRef}>
           <button
             onClick={() => setShowStatusPopover(!showStatusPopover)}
             className="w-5 h-5 flex items-center justify-center hover:bg-zinc-800 rounded-full transition-colors"
@@ -432,19 +509,50 @@ const TaskRow = ({
         </div>
 
         <button
-          className="w-5 h-5 flex items-center justify-center mr-3 text-zinc-500 hover:text-[#d4af37] transition-colors shrink-0"
+          className="w-5 h-5 flex items-center justify-center mr-3 text-zinc-500 hover:text-[#d4af37] transition-colors shrink-0 mt-0.5"
           onClick={() => setExpanded(!expanded)}
           style={{ visibility: task.subtasks.length > 0 || isAddingMode ? 'visible' : 'hidden' }}
         >
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
 
-        <div className="flex-1 flex items-center gap-2 pr-4 min-w-0">
-          <span className="text-sm text-zinc-200 font-medium truncate">{task.name}</span>
-          {isOverdue && (
-            <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0">
-              Overdue
-            </span>
+        <div className="w-[450px] flex flex-col pr-4 shrink-0 min-w-0 py-1">
+          {isEditingName ? (
+            <div className="flex flex-col w-full relative">
+              <input
+                ref={editInputRef}
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={handleNameKeyDown}
+                className={`w-full bg-[#0a0a0a] border ${editName.trim().length < 20 || editName.trim().length > 150 ? 'border-red-500/50 focus:ring-red-500/50' : 'border-zinc-800 focus:border-[#d4af37] focus:ring-[#d4af37]'} text-zinc-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 transition-colors`}
+              />
+              <span className={`text-[10px] mt-1 ${editName.trim().length < 20 || editName.trim().length > 150 ? 'text-red-400' : 'text-zinc-500'}`}>
+                {editName.trim().length} / 150 chars (min 20)
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 relative group/name">
+              <span
+                className="text-sm text-zinc-200 font-medium break-words whitespace-normal leading-relaxed cursor-text"
+                onDoubleClick={() => setIsEditingName(true)}
+              >
+                {task.name}
+              </span>
+              <button
+                onClick={() => setIsEditingName(true)}
+                className="opacity-0 group-hover/name:opacity-100 p-1 text-zinc-500 hover:text-[#d4af37] transition-all ml-1 shrink-0 bg-zinc-900/50 rounded-md mt-0.5"
+                title="Edit name"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              {isOverdue && (
+                <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0 mt-0.5">
+                  Overdue
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -588,6 +696,7 @@ const TaskRow = ({
               key={sub.id}
               task={sub}
               level={level + 1}
+              parentId={task.id}
               employees={employees}
               onAddSubtask={onAddSubtask}
               onDeleteTask={onDeleteTask}
@@ -595,6 +704,11 @@ const TaskRow = ({
               onChangeStatus={onChangeStatus}
               onChangePriority={onChangePriority}
               onChangeDueDate={onChangeDueDate}
+              onChangeName={onChangeName}
+              onDragStartReorder={onDragStartReorder}
+              onDragOverReorder={onDragOverReorder}
+              onDropReorder={onDropReorder}
+              onDragEndReorder={onDragEndReorder}
             />
           ))}
           {isAddingMode && (
@@ -635,6 +749,75 @@ export default function Projects() {
     deadline: 'all',
     employee: 'all',
   });
+
+  const [draggedItem, setDraggedItem] = useState<{ id: string, parentId: string | null } | null>(null);
+
+  const handleDragStartReorder = (e: React.DragEvent, id: string, parentId: string | null) => {
+    e.stopPropagation();
+    setDraggedItem({ id, parentId });
+    e.dataTransfer.effectAllowed = 'move';
+    (e.target as HTMLElement).classList.add('opacity-40');
+  };
+
+  const handleDragOverReorder = (e: React.DragEvent, id: string, parentId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropReorder = (e: React.DragEvent, dropTargetId: string, parentId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).classList.remove('opacity-40');
+
+    if (!draggedItem) return;
+    if (draggedItem.id === dropTargetId) return;
+    if (draggedItem.parentId !== parentId) return;
+
+    setProjects(prevProjects => {
+      const newProjects = JSON.parse(JSON.stringify(prevProjects));
+      for (const p of newProjects) {
+        if (p.id === selectedProjectId) {
+          if (parentId === null) {
+            const dragIndex = p.tasks.findIndex((t: Task) => t.id === draggedItem.id);
+            const dropIndex = p.tasks.findIndex((t: Task) => t.id === dropTargetId);
+            if (dragIndex > -1 && dropIndex > -1) {
+              const [draggedObj] = p.tasks.splice(dragIndex, 1);
+              p.tasks.splice(dropIndex, 0, draggedObj);
+            }
+          } else {
+            const reorderSubtasks = (tasks: Task[]) => {
+              for (const task of tasks) {
+                if (task.id === parentId) {
+                  const dragIndex = task.subtasks.findIndex(t => t.id === draggedItem.id);
+                  const dropIndex = task.subtasks.findIndex(t => t.id === dropTargetId);
+                  if (dragIndex > -1 && dropIndex > -1) {
+                    const [draggedObj] = task.subtasks.splice(dragIndex, 1);
+                    task.subtasks.splice(dropIndex, 0, draggedObj);
+                  }
+                  return true;
+                }
+                if (task.subtasks && task.subtasks.length > 0) {
+                  if (reorderSubtasks(task.subtasks)) return true;
+                }
+              }
+              return false;
+            };
+            reorderSubtasks(p.tasks);
+          }
+        }
+      }
+      return newProjects;
+    });
+
+    setDraggedItem(null);
+  };
+
+  const handleDragEndReorder = (e: React.DragEvent) => {
+    (e.target as HTMLElement).classList.remove('opacity-40');
+    setDraggedItem(null);
+  };
+
 
   // New sophisticated colors matching your dark/gold aesthetic
   const projectColors = ['#d4af37', '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ec4899'];
@@ -907,6 +1090,13 @@ export default function Projects() {
     } catch (e) { fetchProjects(); }
   };
 
+  const handleChangeName = async (taskId: string, newName: string) => {
+    updateLocalTask(taskId, { name: newName });
+    try {
+      await axiosInstance.put(`/tasks/${taskId}`, { name: newName });
+    } catch (e) { fetchProjects(); }
+  };
+
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   const filterTopLevelTasks = (tasks: Task[], filters: typeof taskFilters): Task[] => {
@@ -1055,7 +1245,7 @@ export default function Projects() {
               <div className="border border-zinc-800/60 rounded-xl bg-[#18181b] shadow-xl flex flex-col pb-8">
                 {/* List Header */}
                 <div className="flex bg-[#0a0a0a]/50 px-3 py-3 border-b border-zinc-800/60 rounded-t-xl text-[10px] uppercase tracking-widest text-zinc-500 font-semibold shrink-0">
-                  <div className="flex-1 pl-[2.25rem]">Task Name</div>
+                  <div className="w-[450px] pl-[82px] shrink-0">Task Name</div>
                   <div className="w-48 text-left pl-2 shrink-0">Assignee</div>
                   <div className="w-12 text-center shrink-0">Pri</div>
                   <div className="w-36 text-left pl-2 shrink-0">Due Date</div>
@@ -1081,6 +1271,7 @@ export default function Projects() {
                         <TaskRow
                           key={t.id}
                           task={t}
+                          parentId={null}
                           employees={employees}
                           onAddSubtask={(parentId, data) => { handleAddTask(selectedProject.id, parentId, data); }}
                           onDeleteTask={handleDeleteTask}
@@ -1088,6 +1279,11 @@ export default function Projects() {
                           onChangeStatus={handleChangeStatus}
                           onChangePriority={handleChangePriority}
                           onChangeDueDate={handleChangeDueDate}
+                          onChangeName={handleChangeName}
+                          onDragStartReorder={handleDragStartReorder}
+                          onDragOverReorder={handleDragOverReorder}
+                          onDropReorder={handleDropReorder}
+                          onDragEndReorder={handleDragEndReorder}
                         />
                       ))}
                       {isAddingRootTask && (

@@ -195,9 +195,9 @@ export default function Dashboard() {
       setUpdateError('Please fill in your daily update before clocking out');
       return;
     }
-    const wordCount = dailyUpdate.trim().split(/\s+/).filter(Boolean).length;
-    if (wordCount < 100) {
-      setUpdateError(`Report must be at least 100 words (currently ${wordCount} words). Please provide more detail.`);
+    const charCount = dailyUpdate.trim().length;
+    if (charCount < 100) {
+      setUpdateError(`Report must be at least 100 characters (currently ${charCount} chars). Please provide more detail.`);
       return;
     }
     try {
@@ -326,7 +326,7 @@ export default function Dashboard() {
       }
 
       const sessions = entry.summary && entry.summary !== 'No update provided'
-        ? entry.summary.split(SESSION_SPLIT).filter(s => s.trim())
+        ? entry.summary.split(SESSION_SPLIT).filter(s => s.trim()).reverse()
         : [];
 
       if (sessions.length === 0) return;
@@ -342,7 +342,7 @@ export default function Dashboard() {
       });
     });
 
-    return activities.slice(0, 10);
+    return activities.slice(0, 5);
   }, [history]);
 
   const filteredTasks = tasks.filter(t => {
@@ -458,11 +458,11 @@ export default function Dashboard() {
                   <label className="text-xs uppercase tracking-widest text-zinc-400">
                     Work Summary <span className="text-red-500">*</span>
                   </label>
-                  <span className={`text-xs font-mono tabular-nums ${dailyUpdate.trim().split(/\s+/).filter(Boolean).length < 100
+                  <span className={`text-xs font-mono tabular-nums ${dailyUpdate.trim().length < 100
                     ? 'text-red-400'
                     : 'text-emerald-400'
                     }`}>
-                    {dailyUpdate.trim() ? dailyUpdate.trim().split(/\s+/).filter(Boolean).length : 0} / 100 words (min)
+                    {dailyUpdate.trim().length} / 100 chars (min)
                   </span>
                 </div>
                 <Textarea
