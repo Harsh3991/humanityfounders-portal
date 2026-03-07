@@ -108,13 +108,27 @@ export default function Attendance() {
         const formattedHistory = dataArray.map((h: any) => {
           const d = new Date(h.date);
           const safeLocalString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+          let mappedStatus: AttendanceStatus = getAttendanceStatus(h.activeSeconds || 0);
+          if (h.status === 'clocked-in' || h.status === 'away') {
+            mappedStatus = 'working';
+          } else if (h.status === 'absent') {
+            mappedStatus = 'absent';
+          } else if (h.status === 'clocked-out' && (h.activeSeconds || 0) >= 28800) {
+            mappedStatus = 'present-full';
+          } else if (h.status === 'clocked-out') {
+            mappedStatus = 'present-light'; // Handle partials so they don't revert
+          }
+
+          console.log(`fetchHistory item -> Date: ${safeLocalString}, db_status: ${h.status}, mappedStatus: ${mappedStatus}, activeSeconds: ${h.activeSeconds}`);
+
           return {
             date: safeLocalString,
             totalSeconds: h.activeSeconds || 0,
-            attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' : (h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0)),
+            attendanceStatus: mappedStatus,
             summary: h.dailyReport || 'No update provided',
-            clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
-            clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
+            clockIn: h.clockIn ? new Date(h.clockIn).getTime() : 0,
+            clockOut: h.clockOut ? new Date(h.clockOut).getTime() : 0,
             isAdminOverride: h.dailyReport && String(h.dailyReport).startsWith('Admin') ? true : false,
           };
         });
@@ -176,6 +190,11 @@ export default function Attendance() {
     if (!isAdmin || !selectedEmployeeId) return;
 
     const entry = historyByDay[day];
+
+    console.log(`--- ADMIN OVERRIDE ---`);
+    console.log(`Day: ${day}, Requested Status: ${status}`);
+    console.log(`Current Entry for day:`, entry);
+
     if (entry) {
       if (status === 'present' && entry.attendanceStatus.startsWith('present')) {
         setErrorPopup("This employee is already marked present for this date.");
@@ -192,10 +211,11 @@ export default function Attendance() {
     setOverrideLoading(true);
 
     try {
-      await axiosInstance.post(`/attendance/admin/${selectedEmployeeId}/override`, {
+      const resp = await axiosInstance.post(`/attendance/admin/${selectedEmployeeId}/override`, {
         date: dateStr,
         status
       });
+      console.log(`Backend response for override:`, resp.data);
       await fetchHistory(); // Refresh to reflect changes instantly
     } catch (error) {
       console.error("Failed to override attendance", error);
@@ -220,7 +240,6 @@ export default function Attendance() {
     // Backfill past days as 'absent' if they have no entry
     for (let d = 1; d <= daysInMonth; d++) {
       const iterDate = new Date(year, month, d);
-      if (iterDate.getDay() === 0) continue; // Skip Sundays
       if (!map[d] && iterDate < today) {
         map[d] = {
           date: `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
@@ -263,7 +282,6 @@ export default function Attendance() {
   for (let d = 1; d <= daysInMonth; d++) calendarDays.push(d);
 
   const selectedEntry = selectedDay ? historyByDay[selectedDay] : null;
-  const isSundaySelection = selectedDay ? new Date(year, month, selectedDay).getDay() === 0 : false;
 
   if (initialLoading) {
     return (
@@ -381,7 +399,6 @@ export default function Attendance() {
                   if (day === null) return <div key={`empty-${i}`} />;
 
                   const date = new Date(year, month, day);
-                  const isSunday = date.getDay() === 0;
                   const entry = historyByDay[day];
                   const isSelected = selectedDay === day;
 
@@ -389,10 +406,7 @@ export default function Attendance() {
                   let bgClass = "bg-zinc-900/60 hover:bg-zinc-800 cursor-pointer border border-transparent";
                   let textClass = "text-yellow-500/80 group-hover:text-yellow-500";
 
-                  if (isSunday) {
-                    bgClass = "bg-[#1f1f22] border-zinc-800/50 pointer-events-none"; // Holiday
-                    textClass = "text-zinc-600";
-                  } else if (entry) {
+                  if (entry) {
                     if (entry.attendanceStatus === 'absent') {
                       bgClass = "bg-rose-950/80 hover:bg-rose-900 border-rose-900/30 cursor-pointer";
                       textClass = "text-rose-300";
@@ -415,10 +429,8 @@ export default function Attendance() {
                     <button
                       key={day}
                       onClick={() => {
-                        if (!isSunday) {
-                          setSelectedDay(day);
-                          fetchDayDetail(day);
-                        }
+                        setSelectedDay(day);
+                        fetchDayDetail(day);
                       }}
                       title={entry ? Object.keys(entry).map(k => k === "totalSeconds" ? formatTime(entry[k]) : "").filter(a => a).join('') : ""}
                       className={`group aspect-square rounded-[8px] p-2.5 sm:p-3 flex items-start justify-start transition-all duration-200 outline-none
@@ -441,7 +453,7 @@ export default function Attendance() {
             </div>
 
             {/* Daily Report for Selected Date — always fetched fresh from DB */}
-            {selectedDay && !isSundaySelection && (
+            {selectedDay && (
               <div className="mt-8 bg-[#18181b] p-6 rounded-2xl border border-zinc-800/60 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
                 <h3 className="text-yellow-500 font-heading text-xl mb-5 uppercase tracking-widest flex items-center gap-3 border-b border-zinc-800 pb-4">
                   <ListTodo className="w-5 h-5" /> Daily Report
@@ -533,7 +545,7 @@ export default function Attendance() {
             </div>
 
             {/* Daily Report Widget (or Admin Override Panel) */}
-            {selectedDay && !isSundaySelection && (
+            {selectedDay && (
               <div className="bg-[#18181b] rounded-2xl p-6 shadow-2xl border border-yellow-500/30 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div className="flex items-center justify-between mb-5 pb-4 border-b border-zinc-800">
                   <h3 className="text-white font-heading text-lg tracking-wide">

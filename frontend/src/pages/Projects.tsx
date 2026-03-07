@@ -173,8 +173,8 @@ const TaskInputRow = ({
   return (
     <div
       className={`flex items-start py-3 px-3 bg-[#d4af37]/[0.03] border-b border-zinc-800/40 last:border-0 ring-1 ring-[#d4af37]/20 ${showAssignPopover ? 'relative z-50' : ''}`}
-      style={{ paddingLeft: `calc(${level * 1.5 + 1}rem + 8px)` }}
     >
+      <div style={{ width: `calc(${level * 1.5}rem + 12px)` }} className="shrink-0" />
       {/* Status placeholder */}
       <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5">
         <div className="w-5 h-5 flex items-center justify-center">
@@ -188,7 +188,7 @@ const TaskInputRow = ({
       </div>
 
       {/* Name input */}
-      <div className="w-[450px] text-sm text-zinc-200 pr-4 shrink-0 flex flex-col">
+      <div className="flex-1 min-w-[200px] text-sm text-zinc-200 pr-4 shrink-0 flex flex-col">
         <input
           autoFocus
           type="text"
@@ -465,8 +465,8 @@ const TaskRow = ({
         onDrop={(e) => onDropReorder(e, task.id, parentId || null)}
         onDragEnd={onDragEndReorder}
         className="flex items-start group py-3 px-3 hover:bg-zinc-800/20 transition-colors border-b border-zinc-800/40 last:border-0 cursor-grab active:cursor-grabbing"
-        style={{ paddingLeft: `calc(${level * 1.5 + 1}rem + 8px)` }}
       >
+        <div style={{ width: `calc(${level * 1.5}rem + 12px)` }} className="shrink-0" />
         <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5" ref={statusRef}>
           <button
             onClick={() => setShowStatusPopover(!showStatusPopover)}
@@ -516,7 +516,7 @@ const TaskRow = ({
           {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
 
-        <div className="w-[450px] flex flex-col pr-4 shrink-0 min-w-0 py-1">
+        <div className="flex-1 min-w-[200px] flex flex-col pr-4 shrink-0 py-1">
           {isEditingName ? (
             <div className="flex flex-col w-full relative">
               <input
@@ -1245,10 +1245,13 @@ export default function Projects() {
               <div className="border border-zinc-800/60 rounded-xl bg-[#18181b] shadow-xl flex flex-col pb-8">
                 {/* List Header */}
                 <div className="flex bg-[#0a0a0a]/50 px-3 py-3 border-b border-zinc-800/60 rounded-t-xl text-[10px] uppercase tracking-widest text-zinc-500 font-semibold shrink-0">
-                  <div className="w-[450px] pl-[82px] shrink-0">Task Name</div>
-                  <div className="w-48 text-left pl-2 shrink-0">Assignee</div>
+                  <div style={{ width: '12px' }} className="shrink-0" />
+                  <div className="w-5 mr-1.5 shrink-0" /> {/* Status */}
+                  <div className="w-5 mr-3 shrink-0" /> {/* Chevron */}
+                  <div className="flex-1 min-w-[200px] pr-4">Task Name</div>
+                  <div className="w-48 text-left px-2 shrink-0">Assignee</div>
                   <div className="w-12 text-center shrink-0">Pri</div>
-                  <div className="w-36 text-left pl-2 shrink-0">Due Date</div>
+                  <div className="w-36 text-left px-2 shrink-0">Due Date</div>
                   <div className="w-24 text-center shrink-0">Actions</div>
                 </div>
 
