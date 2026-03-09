@@ -32,9 +32,10 @@ interface AttendanceEntry {
 
 function getAttendanceStatus(totalSeconds: number): AttendanceStatus {
   const hours = totalSeconds / 3600;
-  if (hours < 4) return 'present-light';
-  if (hours < 7) return 'present-medium';
-  return 'present-full';
+  if (hours <= 0) return 'absent';
+  if (hours <= 3) return 'present-light';   // 1 to 3 hours
+  if (hours <= 6) return 'present-medium';  // 4 to 6 hours
+  return 'present-full';                    // 7+ hours
 }
 
 // Updated to match the dark matte / rich colors of the calendar
@@ -109,7 +110,8 @@ export default function Dashboard() {
             due: t.dueDate ? t.dueDate.split('T')[0] : 'No Date',
             status: t.status || 'todo',
             priority: t.priority || 'none',
-            overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
+            overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done',
+            deadlineExtended: t.deadlineExtended || false
           })));
         }
 
@@ -118,10 +120,22 @@ export default function Dashboard() {
           const formattedHistory = dataArray.map((h: any) => {
             const d = new Date(h.date);
             const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+            let mappedStatus: AttendanceStatus = getAttendanceStatus(h.activeSeconds || 0);
+            if (h.status === 'clocked-in' || h.status === 'away') {
+              mappedStatus = 'working';
+            } else if (h.status === 'absent') {
+              mappedStatus = 'absent';
+            } else if (h.status === 'clocked-out' && (h.activeSeconds || 0) >= 28800) {
+              mappedStatus = 'present-full';
+            } else if (h.status === 'clocked-out') {
+              mappedStatus = 'present-light'; // Handle partials so they don't revert
+            }
+
             return {
               date: localDate,
               totalSeconds: h.activeSeconds || 0,
-              attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' : (h.status === 'absent' ? 'absent' : getAttendanceStatus(h.activeSeconds || 0)),
+              attendanceStatus: mappedStatus,
               summary: h.dailyReport || 'No update provided',
               clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
               clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
@@ -221,10 +235,22 @@ export default function Dashboard() {
         const formattedHistory: AttendanceEntry[] = dataArray.map((h: any) => {
           const d = new Date(h.date);
           const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+          let mappedStatus: AttendanceStatus = getAttendanceStatus(h.activeSeconds || 0);
+          if (h.status === 'clocked-in' || h.status === 'away') {
+            mappedStatus = 'working';
+          } else if (h.status === 'absent') {
+            mappedStatus = 'absent';
+          } else if (h.status === 'clocked-out' && (h.activeSeconds || 0) >= 28800) {
+            mappedStatus = 'present-full';
+          } else if (h.status === 'clocked-out') {
+            mappedStatus = 'present-light'; // Handle partials so they don't revert
+          }
+
           return {
             date: localDate,
             totalSeconds: h.activeSeconds || 0,
-            attendanceStatus: (h.status === 'clocked-in' || h.status === 'away') ? 'working' as AttendanceStatus : (h.status === 'absent' ? 'absent' as AttendanceStatus : getAttendanceStatus(h.activeSeconds || 0)),
+            attendanceStatus: mappedStatus,
             summary: h.dailyReport || 'No update provided',
             clockIn: h.clockIn ? new Date(h.clockIn).getTime() : Date.now(),
             clockOut: h.clockOut ? new Date(h.clockOut).getTime() : Date.now(),
@@ -258,7 +284,6 @@ export default function Dashboard() {
 
     for (let d = 1; d <= daysInMonth; d++) {
       const iterDate = new Date(currentYear, currentMonth, d);
-      if (iterDate.getDay() === 0) continue; // Skip Sundays
       if (!historyByDay[d] && iterDate < today) {
         historyByDay[d] = {
           date: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
@@ -356,7 +381,8 @@ export default function Dashboard() {
       } else {
         const todayStr = new Date().toISOString().split('T')[0];
         if (taskFilters.deadline === 'today' && t.due !== todayStr) match = false;
-        if (taskFilters.deadline === 'overdue' && !t.overdue) match = false;
+        if (taskFilters.deadline === 'overdue' && (!t.overdue || t.deadlineExtended)) match = false;
+        if (taskFilters.deadline === 'extended' && !t.deadlineExtended) match = false;
       }
     }
     return match;
@@ -677,6 +703,7 @@ export default function Dashboard() {
             >
               <option value="all">Date</option>
               <option value="overdue">Overdue</option>
+              <option value="extended">Deadline Extended</option>
               <option value="today">Today</option>
             </select>
           </div>
@@ -695,8 +722,8 @@ export default function Dashboard() {
                 <tr key={t.id} className="hover:bg-zinc-800/20 transition-colors">
                   <td className="py-3 px-2 text-zinc-200 font-medium">{t.name}</td>
                   <td className="py-3 px-2 text-zinc-400 text-xs">{t.project}</td>
-                  <td className={`py-3 px-2 font-mono text-xs ${t.overdue ? 'text-red-400' : 'text-zinc-400'}`}>
-                    {t.due} {t.overdue && <span className="ml-2 text-[10px] bg-red-950/40 border border-red-900/50 text-red-400 px-1.5 py-0.5 rounded uppercase tracking-wider">Overdue</span>}
+                  <td className={`py-3 px-2 font-mono text-xs ${t.deadlineExtended ? 'text-blue-400' : (t.overdue ? 'text-red-400' : 'text-zinc-400')}`}>
+                    {t.due} {t.deadlineExtended ? <span className="ml-2 text-[10px] bg-blue-950/40 border border-blue-900/50 text-blue-400 px-1.5 py-0.5 rounded uppercase tracking-wider">Deadline Extended</span> : (t.overdue && <span className="ml-2 text-[10px] bg-red-950/40 border border-red-900/50 text-red-400 px-1.5 py-0.5 rounded uppercase tracking-wider">Overdue</span>)}
                   </td>
                 </tr>
               )) : (
