@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axiosInstance from '../lib/axiosInstance';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Loader2, CheckCircle2, Flag, Ban, Calendar, Pencil } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Loader2, CheckCircle2, Flag, Ban, Calendar, Pencil, Clock } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -11,6 +11,7 @@ interface Task {
   priority: string;
   dueDate: string | null;
   subtasks: Task[];
+  deadlineExtended?: boolean;
 }
 
 interface Project {
@@ -38,6 +39,7 @@ function buildTaskTree(flatTasks: any[]): Task[] {
       status: t.status || 'todo',
       priority: t.priority || 'none',
       dueDate: t.dueDate || null,
+      deadlineExtended: t.deadlineExtended || false,
       subtasks: []
     });
   }
@@ -366,6 +368,7 @@ const TaskRow = ({
   onChangePriority,
   onChangeDueDate,
   onChangeName,
+  onToggleDeadlineExtended,
   parentId = null,
   onDragStartReorder,
   onDragOverReorder,
@@ -382,6 +385,7 @@ const TaskRow = ({
   onChangePriority: (taskId: string, priority: string) => void,
   onChangeDueDate: (taskId: string, dueDate: string | null) => void,
   onChangeName: (taskId: string, newName: string) => void,
+  onToggleDeadlineExtended: (taskId: string, extended: boolean) => void,
   parentId?: string | null,
   onDragStartReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
   onDragOverReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
@@ -547,7 +551,11 @@ const TaskRow = ({
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
-              {isOverdue && (
+              {task.deadlineExtended ? (
+                <span className="text-[9px] uppercase tracking-widest bg-blue-950/50 text-blue-500 px-1.5 py-0.5 rounded border border-blue-900/50 font-bold shrink-0 mt-0.5">
+                  Deadline Extended
+                </span>
+              ) : isOverdue && (
                 <span className="text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50 font-bold shrink-0 mt-0.5">
                   Overdue
                 </span>
@@ -660,10 +668,10 @@ const TaskRow = ({
                 console.error(e);
               }
             }}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? (isOverdue ? 'bg-red-950/10 border border-red-900/40 hover:border-red-500/50' : 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500') : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition-all duration-200 cursor-pointer ${task.dueDate ? (task.deadlineExtended ? 'bg-blue-950/10 border border-blue-900/40 hover:border-blue-500/50' : isOverdue ? 'bg-red-950/10 border border-red-900/40 hover:border-red-500/50' : 'bg-zinc-800/40 border border-zinc-700/50 hover:border-zinc-500') : 'text-zinc-400 border border-dashed border-zinc-700 hover:border-[#d4af37] hover:text-[#d4af37]'}`}
           >
-            <Calendar className={`w-3.5 h-3.5 shrink-0 ${isOverdue ? 'text-red-500' : task.dueDate ? 'text-zinc-400' : ''}`} />
-            <span className={`text-[11px] font-medium whitespace-nowrap ${isOverdue ? 'text-red-400' : task.status === 'done' ? 'text-emerald-500/80' : task.dueDate ? 'text-zinc-300' : ''}`}>
+            <Calendar className={`w-3.5 h-3.5 shrink-0 ${task.deadlineExtended ? 'text-blue-500' : isOverdue ? 'text-red-500' : task.dueDate ? 'text-zinc-400' : ''}`} />
+            <span className={`text-[11px] font-medium whitespace-nowrap ${task.deadlineExtended ? 'text-blue-400' : isOverdue ? 'text-red-400' : task.status === 'done' ? 'text-emerald-500/80' : task.dueDate ? 'text-zinc-300' : ''}`}>
               {task.dueDate ? formatDueDate(task.dueDate) : <span className="uppercase tracking-wider">Due Date</span>}
             </span>
           </div>
@@ -677,8 +685,11 @@ const TaskRow = ({
           />
         </div>
 
-        <div className="w-24 flex justify-center shrink-0">
+        <div className="w-32 flex justify-center shrink-0">
           <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => onToggleDeadlineExtended(task.id, !task.deadlineExtended)} className={`p-1.5 rounded transition-colors ${task.deadlineExtended ? 'bg-blue-950/30 text-blue-400' : 'hover:bg-blue-950/30 text-zinc-400 hover:text-blue-400'}`} title={task.deadlineExtended ? "Remove Deadline Extended" : "Mark Deadline Extended"}>
+              <Clock className="w-4 h-4" />
+            </button>
             <button onClick={() => { setExpanded(true); setIsAddingMode(true); }} className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-[#d4af37] rounded transition-colors" title="Add Subtask">
               <Plus className="w-4 h-4" />
             </button>
@@ -705,6 +716,7 @@ const TaskRow = ({
               onChangePriority={onChangePriority}
               onChangeDueDate={onChangeDueDate}
               onChangeName={onChangeName}
+              onToggleDeadlineExtended={onToggleDeadlineExtended}
               onDragStartReorder={onDragStartReorder}
               onDragOverReorder={onDragOverReorder}
               onDropReorder={onDropReorder}
@@ -934,6 +946,7 @@ export default function Projects() {
         status: newTask.status || 'todo',
         priority: newTask.priority || data.priority || 'none',
         dueDate: newTask.dueDate || data.dueDate || null,
+        deadlineExtended: newTask.deadlineExtended || false,
         subtasks: []
       };
 
@@ -1084,9 +1097,28 @@ export default function Projects() {
   };
 
   const handleChangeDueDate = async (taskId: string, dueDate: string | null) => {
-    updateLocalTask(taskId, { dueDate });
+    let currentTask: Task | undefined;
+    const findTask = (tasks: Task[]) => {
+      for (const t of tasks) {
+        if (t.id === taskId) {
+          currentTask = t; return true;
+        }
+        if (t.subtasks && findTask(t.subtasks)) return true;
+      }
+      return false;
+    };
+    for (const p of projects) {
+      if (findTask(p.tasks)) break;
+    }
+
+    const updates: Partial<Task> = { dueDate };
+    if (currentTask && currentTask.dueDate && dueDate && new Date(dueDate) > new Date(currentTask.dueDate)) {
+      updates.deadlineExtended = true;
+    }
+
+    updateLocalTask(taskId, updates);
     try {
-      await axiosInstance.put(`/tasks/${taskId}`, { dueDate });
+      await axiosInstance.put(`/tasks/${taskId}`, updates);
     } catch (e) { fetchProjects(); }
   };
 
@@ -1094,6 +1126,13 @@ export default function Projects() {
     updateLocalTask(taskId, { name: newName });
     try {
       await axiosInstance.put(`/tasks/${taskId}`, { name: newName });
+    } catch (e) { fetchProjects(); }
+  };
+
+  const handleToggleDeadlineExtended = async (taskId: string, extended: boolean) => {
+    updateLocalTask(taskId, { deadlineExtended: extended });
+    try {
+      await axiosInstance.put(`/tasks/${taskId}`, { deadlineExtended: extended });
     } catch (e) { fetchProjects(); }
   };
 
@@ -1119,7 +1158,8 @@ export default function Projects() {
         const todayStr = new Date().toISOString().split('T')[0];
         const dueStr = t.dueDate.split('T')[0];
         if (filters.deadline === 'today' && dueStr !== todayStr) return false;
-        if (filters.deadline === 'overdue' && (dueStr >= todayStr || t.status === 'done')) return false;
+        if (filters.deadline === 'overdue' && (dueStr >= todayStr || t.status === 'done' || t.deadlineExtended)) return false;
+        if (filters.deadline === 'extended' && !t.deadlineExtended) return false;
       }
 
       return true;
@@ -1217,6 +1257,7 @@ export default function Projects() {
                 >
                   <option value="all">Date</option>
                   <option value="overdue">Overdue</option>
+                  <option value="extended">Deadline Extended</option>
                   <option value="today">Today</option>
                 </select>
 
@@ -1252,7 +1293,7 @@ export default function Projects() {
                   <div className="w-48 text-left px-2 shrink-0">Assignee</div>
                   <div className="w-12 text-center shrink-0">Pri</div>
                   <div className="w-36 text-left px-2 shrink-0">Due Date</div>
-                  <div className="w-24 text-center shrink-0">Actions</div>
+                  <div className="w-32 text-center shrink-0">Actions</div>
                 </div>
 
                 {/* List Rows */}
@@ -1283,6 +1324,7 @@ export default function Projects() {
                           onChangePriority={handleChangePriority}
                           onChangeDueDate={handleChangeDueDate}
                           onChangeName={handleChangeName}
+                          onToggleDeadlineExtended={handleToggleDeadlineExtended}
                           onDragStartReorder={handleDragStartReorder}
                           onDragOverReorder={handleDragOverReorder}
                           onDropReorder={handleDropReorder}

@@ -16,6 +16,7 @@ interface TaskItem {
   status: string;
   priority: 'none' | 'low' | 'medium' | 'high' | 'urgent';
   overdue: boolean;
+  deadlineExtended?: boolean;
 }
 
 
@@ -82,7 +83,8 @@ export default function TaskOversight() {
           due: t.dueDate ? t.dueDate.split('T')[0] : 'No Due Date',
           status: t.status || 'todo',
           priority: t.priority || 'none',
-          overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
+          overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done',
+          deadlineExtended: t.deadlineExtended || false
         }));
         setTasks(userTasks);
       } catch (err) {
@@ -200,6 +202,7 @@ export default function TaskOversight() {
                   >
                     <option value="all">Date</option>
                     <option value="overdue">Overdue</option>
+                    <option value="extended">Deadline Extended</option>
                     <option value="today">Today</option>
                   </select>
                 </div>
@@ -232,7 +235,8 @@ export default function TaskOversight() {
                       } else {
                         const todayStr = new Date().toISOString().split('T')[0];
                         if (taskFilters.deadline === 'today' && t.due !== todayStr) match = false;
-                        if (taskFilters.deadline === 'overdue' && !t.overdue) match = false;
+                        if (taskFilters.deadline === 'overdue' && (!t.overdue || t.deadlineExtended)) match = false;
+                        if (taskFilters.deadline === 'extended' && !t.deadlineExtended) match = false;
                       }
                     }
                     return match;
@@ -242,7 +246,7 @@ export default function TaskOversight() {
                     return (
                       <div
                         key={i}
-                        className={`bg-[#18181b] border rounded-xl p-5 flex flex-col gap-5 transition-colors hover:border-zinc-600 shadow-md ${t.overdue ? 'border-red-900/40 bg-red-950/5' : 'border-zinc-800/60'
+                        className={`bg-[#18181b] border rounded-xl p-5 flex flex-col gap-5 transition-colors hover:border-zinc-600 shadow-md ${t.deadlineExtended ? 'border-blue-900/40 bg-blue-950/5' : (t.overdue ? 'border-red-900/40 bg-red-950/5' : 'border-zinc-800/60')
                           }`}
                       >
                         <div className="flex items-start justify-between gap-4">
@@ -258,10 +262,14 @@ export default function TaskOversight() {
 
                         <div className="flex items-center justify-between mt-auto pt-4 border-t border-zinc-800/50">
                           <div className="flex items-center gap-2">
-                            <Calendar className={`w-3.5 h-3.5 ${t.overdue ? 'text-red-500' : 'text-zinc-600'}`} />
-                            <span className={`text-xs font-mono ${t.overdue ? 'text-red-400 font-medium' : 'text-zinc-400'}`}>
+                            <Calendar className={`w-3.5 h-3.5 ${t.deadlineExtended ? 'text-blue-500' : (t.overdue ? 'text-red-500' : 'text-zinc-600')}`} />
+                            <span className={`text-xs font-mono ${t.deadlineExtended ? 'text-blue-400 font-medium' : (t.overdue ? 'text-red-400 font-medium' : 'text-zinc-400')}`}>
                               {t.due}
-                              {t.overdue && <span className="ml-2 text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50">Overdue</span>}
+                              {t.deadlineExtended ? (
+                                <span className="ml-2 text-[9px] uppercase tracking-widest bg-blue-950/50 text-blue-500 px-1.5 py-0.5 rounded border border-blue-900/50">Deadline Extended</span>
+                              ) : t.overdue && (
+                                <span className="ml-2 text-[9px] uppercase tracking-widest bg-red-950/50 text-red-500 px-1.5 py-0.5 rounded border border-red-900/50">Overdue</span>
+                              )}
                             </span>
                           </div>
                           <span className={`px-2 py-0.5 text-[10px] uppercase tracking-widest rounded-md border font-bold ${PRIORITY_STYLES[t.priority] || PRIORITY_STYLES.medium}`}>
