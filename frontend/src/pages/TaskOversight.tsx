@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Search, ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, ClipboardList, Calendar, AlertCircle, CheckCircle2, Clock, Loader2, Plus } from 'lucide-react';
 import axiosInstance from '../lib/axiosInstance';
+import AddTaskModal from '../components/AddTaskModal.tsx';
 
 interface EmployeeItem {
   id: string;
@@ -18,8 +19,6 @@ interface TaskItem {
   overdue: boolean;
   deadlineExtended?: boolean;
 }
-
-
 
 const PRIORITY_STYLES: Record<string, string> = {
   none: 'text-zinc-500 border-zinc-800 bg-[#18181b]/50',
@@ -48,6 +47,7 @@ export default function TaskOversight() {
     priority: 'all',
     deadline: 'all'
   });
+  const [showAddTask, setShowAddTask] = useState(false);
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -69,32 +69,33 @@ export default function TaskOversight() {
     fetchEmployees();
   }, []);
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      if (!selectedId) return;
-      setTasksLoading(true);
-      try {
-        const res = await axiosInstance.get(`/tasks/user/${selectedId}`);
-        const allTasks = res.data.data.flatMap((group: any) => group.tasks);
-        const userTasks = allTasks.map((t: any) => ({
-          id: t._id,
-          name: t.name,
-          project: t.project?.name || 'Unassigned',
-          due: t.dueDate ? t.dueDate.split('T')[0] : 'No Due Date',
-          status: t.status || 'todo',
-          priority: t.priority || 'none',
-          overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done',
-          deadlineExtended: t.deadlineExtended || false
-        }));
-        setTasks(userTasks);
-      } catch (err) {
-        setTasks([]);
-      } finally {
-        setTasksLoading(false);
-      }
-    };
-    fetchTasks();
+  const refreshTasks = useCallback(async () => {
+    if (!selectedId) return;
+    setTasksLoading(true);
+    try {
+      const res = await axiosInstance.get(`/tasks/user/${selectedId}`);
+      const allTasks = res.data.data.flatMap((group: any) => group.tasks);
+      const userTasks = allTasks.map((t: any) => ({
+        id: t._id,
+        name: t.name,
+        project: t.project?.name || 'Unassigned',
+        due: t.dueDate ? t.dueDate.split('T')[0] : 'No Due Date',
+        status: t.status || 'todo',
+        priority: t.priority || 'none',
+        overdue: t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done',
+        deadlineExtended: t.deadlineExtended || false
+      }));
+      setTasks(userTasks);
+    } catch (err) {
+      setTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
   }, [selectedId]);
+
+  useEffect(() => {
+    refreshTasks();
+  }, [selectedId, refreshTasks]);
 
   const filtered = employees.filter((e) => {
     if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -131,8 +132,6 @@ export default function TaskOversight() {
               className="w-full bg-[#0a0a0a] border border-zinc-800 text-zinc-200 text-sm rounded-md pl-9 pr-4 py-2.5 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37] transition-colors placeholder:text-zinc-600"
             />
           </div>
-
-
         </div>
 
         {/* Scrollable Employee List */}
@@ -205,6 +204,13 @@ export default function TaskOversight() {
                     <option value="extended">Deadline Extended</option>
                     <option value="today">Today</option>
                   </select>
+
+                  <button
+                    onClick={() => setShowAddTask(true)}
+                    className="flex items-center gap-2 px-4 py-1.5 bg-[#d4af37] text-black text-[10px] uppercase tracking-widest font-bold rounded shadow-lg shadow-[#d4af37]/20 hover:bg-[#b5952f] transition-all shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Task
+                  </button>
                 </div>
               </div>
             </div>
@@ -291,6 +297,16 @@ export default function TaskOversight() {
           </div>
         )}
       </div>
+
+      <AddTaskModal
+        isOpen={showAddTask}
+        onClose={() => setShowAddTask(false)}
+        onSuccess={() => {
+          setShowAddTask(false);
+          refreshTasks();
+        }}
+        initialAssigneeId={selectedId || undefined}
+      />
     </div>
   );
 }

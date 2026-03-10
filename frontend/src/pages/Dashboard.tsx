@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axiosInstance from '../lib/axiosInstance';
-import { Clock, CheckCircle, AlertTriangle, FolderOpen, Pause, Play, History, Users, ArrowRight } from 'lucide-react';
+import { Clock, CheckCircle, AlertTriangle, FolderOpen, Pause, Play, History, Users, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   Dialog,
@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [dailyUpdate, setDailyUpdate] = useState('');
   const [updateError, setUpdateError] = useState('');
+  const [isSubmittingClockOut, setIsSubmittingClockOut] = useState(false);
 
   const [history, setHistory] = useState<AttendanceEntry[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -214,21 +215,21 @@ export default function Dashboard() {
       setUpdateError(`Report must be at least 100 characters (currently ${charCount} chars). Please provide more detail.`);
       return;
     }
+    setUpdateError(null as any);
+    setIsSubmittingClockOut(true);
+
     try {
       await axiosInstance.post('/attendance/clock-out', { dailyReport: dailyUpdate.trim() });
-    } catch (err) { }
 
-    const totalSeconds = getDisplaySeconds(session);
+      const totalSeconds = getDisplaySeconds(session);
 
-    // Update session state immediately for the timer UI
-    setSession((prev) => prev ? { ...prev, status: 'clocked-out', activeSeconds: totalSeconds, runStartedAt: null } : null);
-    setDisplayTime(totalSeconds);
-    setShowClockOutModal(false);
-    setDailyUpdate('');
+      // Update session state immediately for the timer UI
+      setSession((prev) => prev ? { ...prev, status: 'clocked-out', activeSeconds: totalSeconds, runStartedAt: null } : null);
+      setDisplayTime(totalSeconds);
+      setShowClockOutModal(false);
+      setDailyUpdate('');
 
-    // Re-fetch history from the API to get accurate, server-side data
-    // This avoids timezone/duplicate issues from optimistic updates
-    try {
+      // Re-fetch history from the API to get accurate, server-side data
       const histRes = await axiosInstance.get(`/attendance/history?t=${Date.now()}`);
       const dataArray = histRes?.data?.data?.records;
       if (histRes?.data?.success && Array.isArray(dataArray)) {
@@ -259,7 +260,10 @@ export default function Dashboard() {
         setHistory(formattedHistory);
       }
     } catch (err) {
-      console.error("Failed to refresh history after clock-out:", err);
+      console.error("Failed to submit clock-out or refresh history:", err);
+      setUpdateError('An error occurred. Please try again.');
+    } finally {
+      setIsSubmittingClockOut(false);
     }
   }, [dailyUpdate, session]);
 
@@ -515,8 +519,19 @@ export default function Dashboard() {
               <Button variant="outline" onClick={() => setShowClockOutModal(false)} className="border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">
                 Cancel
               </Button>
-              <Button onClick={handleSubmitClockOut} className="bg-[#d4af37] text-black hover:bg-[#b5952f] font-semibold">
-                Submit &amp; Clock Out
+              <Button
+                onClick={handleSubmitClockOut}
+                className="bg-[#d4af37] text-black hover:bg-[#b5952f] font-semibold flex items-center gap-2 min-w-[140px]"
+                disabled={isSubmittingClockOut}
+              >
+                {isSubmittingClockOut ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Clocking Out...
+                  </>
+                ) : (
+                  'Submit & Clock Out'
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
