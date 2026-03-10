@@ -754,6 +754,8 @@ export default function Projects() {
   const [isSubmittingProject, setIsSubmittingProject] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   const [taskFilters, setTaskFilters] = useState({
     status: 'all',
@@ -1019,33 +1021,46 @@ export default function Projects() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (!confirm("Are you sure you want to delete this task? Associated subtasks will also be deleted.")) return;
-    setProjects(prev => {
-      const newProjects = [...prev];
-      const removeTask = (tasks: Task[]) => {
-        for (let i = 0; i < tasks.length; i++) {
-          if (tasks[i].id === taskId) {
-            tasks.splice(i, 1);
-            return true;
-          }
-          if (tasks[i].subtasks && removeTask(tasks[i].subtasks)) return true;
-        }
-        return false;
-      };
-      for (const p of newProjects) {
-        const cpTasks = JSON.parse(JSON.stringify(p.tasks));
-        if (removeTask(cpTasks)) {
-          p.tasks = cpTasks;
-          break;
-        }
-      }
-      return newProjects;
-    });
+  const handleDeleteTask = (taskId: string) => {
+    setTaskToDeleteId(taskId);
+  };
+
+  const handleConfirmDeleteTask = async () => {
+    if (!taskToDeleteId || isDeletingTask) return;
+    const taskId = taskToDeleteId;
+    setIsDeletingTask(true);
+
     try {
+      // Optimistically update UI
+      setProjects(prev => {
+        const newProjects = [...prev];
+        const removeTask = (tasksArray: Task[]) => {
+          for (let i = 0; i < tasksArray.length; i++) {
+            if (tasksArray[i].id === taskId) {
+              tasksArray.splice(i, 1);
+              return true;
+            }
+            if (tasksArray[i].subtasks && removeTask(tasksArray[i].subtasks)) return true;
+          }
+          return false;
+        };
+        for (const p of newProjects) {
+          const cpTasks = JSON.parse(JSON.stringify(p.tasks));
+          if (removeTask(cpTasks)) {
+            p.tasks = cpTasks;
+            break;
+          }
+        }
+        return newProjects;
+      });
+
       await axiosInstance.delete(`/tasks/${taskId}`);
+      setTaskToDeleteId(null);
     } catch (e) {
+      console.error("Failed to delete task", e);
       fetchProjects();
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -1395,6 +1410,49 @@ export default function Projects() {
                     <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
                   ) : (
                     <><Trash2 className="w-3.5 h-3.5" /> Delete Project</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Task Confirmation Modal */}
+      {taskToDeleteId && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#18181b] w-full max-w-sm border border-red-900/30 shadow-2xl rounded-xl overflow-hidden mx-4 animate-in fade-in zoom-in-95 duration-200">
+            {/* Red accent bar */}
+            <div className="h-1 bg-gradient-to-r from-red-800 via-red-600 to-red-800" />
+            <div className="p-6">
+              {/* Icon */}
+              <div className="w-12 h-12 rounded-full bg-red-950/50 border border-red-900/40 flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-light text-zinc-100 text-center mb-2">Delete Task</h3>
+              <p className="text-sm text-zinc-400 text-center mb-4">
+                Are you sure you want to delete this task?
+              </p>
+              <p className="text-xs text-zinc-500 text-center mb-6 leading-relaxed">
+                Deleting this task will also <span className="text-zinc-300 font-medium">remove all its associated subtasks</span>. This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setTaskToDeleteId(null)}
+                  disabled={isDeletingTask}
+                  className="flex-1 px-4 py-2.5 text-xs uppercase tracking-widest font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDeleteTask}
+                  disabled={isDeletingTask}
+                  className={`flex-1 px-4 py-2.5 text-xs uppercase tracking-widest font-semibold bg-red-700 text-white hover:bg-red-600 rounded-md transition-colors flex items-center justify-center gap-2 ${isDeletingTask ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  {isDeletingTask ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+                  ) : (
+                    <><Trash2 className="w-3.5 h-3.5" /> Delete Task</>
                   )}
                 </button>
               </div>
