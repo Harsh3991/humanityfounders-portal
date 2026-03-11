@@ -929,11 +929,10 @@ export default function People() {
                             {/* Task Status Breakdown */}
                             <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-5">
                               <h4 className="text-[10px] uppercase tracking-widest text-[#d4af37] font-semibold mb-4">Task Status Breakdown</h4>
-                              <div className="grid grid-cols-4 gap-3">
+                              <div className="grid grid-cols-3 gap-3">
                                 {[
                                   { label: 'To Do', count: worklog.summary?.tasksByStatus?.todo || 0, color: 'bg-zinc-700' },
                                   { label: 'In Progress', count: worklog.summary?.tasksByStatus?.inProgress || 0, color: 'bg-blue-500' },
-                                  { label: 'Review', count: worklog.summary?.tasksByStatus?.review || 0, color: 'bg-amber-500' },
                                   { label: 'Done', count: worklog.summary?.tasksByStatus?.done || 0, color: 'bg-emerald-500' },
                                 ].map(({ label, count, color }) => (
                                   <div key={label} className="text-center">
@@ -1028,8 +1027,7 @@ export default function People() {
                                     </div>
                                     {p.description && <p className="text-xs text-zinc-400 mb-3 line-clamp-2">{p.description}</p>}
                                     <div className="flex items-center gap-4 text-[10px] text-zinc-500">
-                                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {p.members?.length || 0} members</span>
-                                      {p.deadline && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Due {formatDate(p.deadline)}</span>}
+                                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {p.assignedMemberCount ?? 0} members</span>
                                     </div>
                                   </div>
                                 ))}
