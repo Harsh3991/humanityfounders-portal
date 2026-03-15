@@ -17,10 +17,10 @@ const attendanceSchema = new mongoose.Schema(
         clockIn: { type: Date },
         clockOut: { type: Date },
 
-        // Status: clocked-in, clocked-out, away, absent
+        // Status: clocked-in, clocked-out, away, absent, on-leave
         status: {
             type: String,
-            enum: ["clocked-in", "clocked-out", "away", "absent"],
+            enum: ["clocked-in", "clocked-out", "away", "absent", "on-leave"],
             default: "absent",
         },
 

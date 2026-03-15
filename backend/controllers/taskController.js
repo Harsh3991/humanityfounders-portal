@@ -463,6 +463,105 @@ const deleteTask = async (req, res, next) => {
     }
 };
 
+// ─────────────────────────────────────────────────
+// GET /api/tasks/overdue
+// Get all overdue tasks across all employees (Admin only)
+// ─────────────────────────────────────────────────
+const getOverdueTasks = async (req, res, next) => {
+    try {
+        const now = new Date();
+
+        const tasks = await Task.find({
+            dueDate: { $lt: now },
+            status: { $ne: "done" },
+        })
+            .populate("project", "name _id")
+            .populate("assignees", "fullName email department")
+            .sort({ dueDate: 1 })
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            count: tasks.length,
+            data: tasks,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────────────────
+// PUT /api/tasks/bulk
+// Bulk-update multiple tasks in one go
+// ─────────────────────────────────────────────────
+const bulkUpdateTasks = async (req, res, next) => {
+    try {
+        const { taskIds, updates } = req.body;
+
+        if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+            return res.status(400).json({ success: false, message: "No task IDs provided" });
+        }
+
+        const mongoSet = {};
+
+        // Status
+        if (updates.status !== undefined) {
+            const workflow = ["todo", "in-progress", "review", "done"];
+            if (!workflow.includes(updates.status)) {
+                return res.status(400).json({ success: false, message: "Invalid status" });
+            }
+            mongoSet.status = updates.status;
+            mongoSet.completedAt = updates.status === "done" ? new Date() : null;
+        }
+
+        // Priority
+        if (updates.priority !== undefined) {
+            mongoSet.priority = updates.priority;
+        }
+
+        // Due date — always reset overdueEmailSent flag
+        if (updates.dueDate !== undefined) {
+            mongoSet.dueDate = updates.dueDate;
+            mongoSet.overdueEmailSent = false;
+        }
+
+        // Deadline extended flag
+        if (updates.deadlineExtended !== undefined) {
+            mongoSet.deadlineExtended = updates.deadlineExtended;
+        }
+
+        // Apply scalar updates via updateMany
+        if (Object.keys(mongoSet).length > 0) {
+            await Task.updateMany({ _id: { $in: taskIds } }, { $set: mongoSet });
+        }
+
+        // Assignees — add (not replace) via $addToSet
+        if (updates.assigneesToAdd && Array.isArray(updates.assigneesToAdd) && updates.assigneesToAdd.length > 0) {
+            await Task.updateMany(
+                { _id: { $in: taskIds } },
+                { $addToSet: { assignees: { $each: updates.assigneesToAdd } } }
+            );
+
+            // Auto-add assignees to every affected project's members list
+            const tasks = await Task.find({ _id: { $in: taskIds } }).select("project").lean();
+            const projectIds = [...new Set(tasks.map((t) => t.project.toString()))];
+            for (const projectId of projectIds) {
+                await Project.findByIdAndUpdate(projectId, {
+                    $addToSet: { members: { $each: updates.assigneesToAdd } },
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `${taskIds.length} task${taskIds.length > 1 ? "s" : ""} updated successfully`,
+            updatedCount: taskIds.length,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createTask,
     getTasksByProject,
@@ -471,4 +570,6 @@ module.exports = {
     getMyTasks,
     getTasksByUser,
     deleteTask,
+    getOverdueTasks,
+    bulkUpdateTasks,
 };

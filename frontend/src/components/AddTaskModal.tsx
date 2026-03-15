@@ -237,15 +237,15 @@ export default function AddTaskModal({ isOpen, onClose, onSuccess, initialAssign
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[550px] bg-[#18181b] border border-zinc-800/80 text-zinc-100 shadow-2xl shadow-black/50 p-0 overflow-hidden font-sans rounded-xl">
-                <DialogHeader className="px-7 py-6 border-b border-zinc-800/50 bg-[#18181b]/50 backdrop-blur-sm">
+            <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[550px] bg-[#18181b] border border-zinc-800/80 text-zinc-100 shadow-2xl shadow-black/50 p-0 overflow-hidden font-sans rounded-xl">
+                <DialogHeader className="px-4 sm:px-7 py-5 border-b border-zinc-800/50 bg-[#18181b]/50 backdrop-blur-sm">
                     <DialogTitle className="text-xl font-medium text-[#d4af37] tracking-wide flex items-center gap-2.5">
                         <Plus className="w-5 h-5 text-[#d4af37]/80" />
                         Create New Task
                     </DialogTitle>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="p-7 space-y-6 max-h-[75vh] overflow-y-auto scrollbar-hide">
+                <form onSubmit={handleSubmit} className="p-4 sm:p-7 space-y-5 max-h-[75vh] overflow-y-auto scrollbar-hide">
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 p-3.5 rounded-lg text-red-400 text-xs flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                             <X className="w-4 h-4 cursor-pointer hover:text-red-300 transition-colors shrink-0" onClick={() => setError(null)} />
@@ -406,7 +406,7 @@ export default function AddTaskModal({ isOpen, onClose, onSuccess, initialAssign
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
                             {/* Priority */}
                             <div>
                                 <label className={labelClasses}>Priority</label>

@@ -5,7 +5,7 @@ import axiosInstance from '../lib/axiosInstance';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full' | 'working';
+type AttendanceStatus = 'absent' | 'present-light' | 'present-medium' | 'present-full' | 'working' | 'on-leave';
 
 interface AttendanceEntry {
   date: string;
@@ -118,6 +118,8 @@ export default function Attendance() {
             mappedStatus = 'present-full';
           } else if (h.status === 'clocked-out') {
             mappedStatus = 'present-light'; // Handle partials so they don't revert
+          } else if (h.status === 'on-leave') {
+            mappedStatus = 'on-leave';
           }
 
           console.log(`fetchHistory item -> Date: ${safeLocalString}, db_status: ${h.status}, mappedStatus: ${mappedStatus}, activeSeconds: ${h.activeSeconds}`);
@@ -264,7 +266,7 @@ export default function Attendance() {
 
     Object.values(historyByDay).forEach(e => {
       if (e.attendanceStatus === 'absent') absentCount++;
-      else {
+      else if (e.attendanceStatus !== 'on-leave') {
         presentCount++;
         totalSeconds += e.totalSeconds;
       }
@@ -422,6 +424,9 @@ export default function Attendance() {
                     } else if (entry.attendanceStatus === 'present-full') {
                       bgClass = "bg-emerald-900 hover:bg-emerald-800 border-none cursor-pointer"; // 7+ Hours (Dark green)
                       textClass = "text-white";
+                    } else if (entry.attendanceStatus === 'on-leave') {
+                      bgClass = "bg-blue-900/80 hover:bg-blue-800/80 border-blue-800/50 cursor-pointer";
+                      textClass = "text-blue-200 font-bold";
                     }
                   }
 
@@ -450,6 +455,7 @@ export default function Attendance() {
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-[#ecf3a4]" /> 1-3 Hrs</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-600 animate-pulse" /> Working</span>
               <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-950 border border-rose-900" /> Absent</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-900" /> On Leave</span>
             </div>
 
             {/* Daily Report for Selected Date — always fetched fresh from DB */}
@@ -562,9 +568,11 @@ export default function Attendance() {
                       <span className="text-zinc-400 text-xs uppercase tracking-wider font-semibold">Status Recorded</span>
                       <span className={`text-xs uppercase tracking-widest font-bold px-2.5 py-1 rounded ${selectedEntry.attendanceStatus === 'absent'
                         ? 'bg-rose-950/50 text-rose-400 border border-rose-900/30'
-                        : selectedEntry.attendanceStatus === 'working' ? 'bg-yellow-950/50 text-yellow-500 border border-yellow-900/30' : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/30'
+                        : selectedEntry.attendanceStatus === 'working' ? 'bg-yellow-950/50 text-yellow-500 border border-yellow-900/30'
+                        : selectedEntry.attendanceStatus === 'on-leave' ? 'bg-blue-950/50 text-blue-400 border border-blue-900/30'
+                        : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/30'
                         }`}>
-                        {selectedEntry.attendanceStatus.split('-')[0]}
+                        {selectedEntry.attendanceStatus === 'on-leave' ? 'On Leave' : selectedEntry.attendanceStatus.split('-')[0]}
                       </span>
                     </div>
                   </div>

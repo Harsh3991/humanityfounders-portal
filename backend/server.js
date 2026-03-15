@@ -48,6 +48,7 @@ app.use("/api/tasks", require("./routes/taskRoutes"));
 app.use("/api/onboarding", require("./routes/onboardingRoutes"));
 app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/audit", require("./routes/auditRoutes"));
+app.use("/api/leaves", require("./routes/leaveRoutes"));
 
 // ─── 404 Handler ───
 app.use((req, res) => {

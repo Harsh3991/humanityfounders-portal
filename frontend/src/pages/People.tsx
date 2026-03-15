@@ -332,7 +332,7 @@ export default function People() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-10 border-b border-zinc-800/50">
         <div className="space-y-2">
-          <h1 className="text-4xl font-serif italic tracking-tight pb-1 leading-normal" style={goldTextGradient}>Directory</h1>
+          <h1 className="text-2xl md:text-4xl font-serif italic tracking-tight pb-1 leading-normal" style={goldTextGradient}>Directory</h1>
           <div className="flex items-center gap-4">
             <div className="h-[1px] w-12 bg-[#d4af37]/40" />
             <p className="text-[10px] uppercase tracking-[0.4em] font-bold text-zinc-500">Manage Personnel & Roles</p>
@@ -340,7 +340,7 @@ export default function People() {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="relative group overflow-hidden px-10 py-4 bg-gradient-to-b from-[#d4af37] to-[#aa8a2e] text-black text-[11px] font-bold uppercase tracking-[0.2em] rounded-sm transition-all hover:shadow-[0_0_25px_rgba(212,175,55,0.3)] shrink-0"
+          className="relative group overflow-hidden px-5 py-3 md:px-10 md:py-4 bg-gradient-to-b from-[#d4af37] to-[#aa8a2e] text-black text-[11px] font-bold uppercase tracking-[0.2em] rounded-sm transition-all hover:shadow-[0_0_25px_rgba(212,175,55,0.3)] shrink-0"
         >
           <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
           <div className="flex items-center gap-2 relative z-10">
@@ -356,7 +356,7 @@ export default function People() {
       >
 
         {/* Search Bar */}
-        <div className="p-8 bg-black/40 backdrop-blur-xl border-b border-zinc-800/60 flex items-center justify-between">
+        <div className="p-4 md:p-8 bg-black/40 backdrop-blur-xl border-b border-zinc-800/60 flex items-center justify-between">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#d4af37]/50" />
             <input
@@ -377,7 +377,7 @@ export default function People() {
             <thead>
               <tr className="bg-black/20">
                 {['Name', 'Role', 'Department', 'Status', 'Actions'].map((head) => (
-                  <th key={head} className="px-10 py-6 text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-black border-b border-zinc-800/80">
+                  <th key={head} className="px-4 py-3 md:px-10 md:py-6 text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-black border-b border-zinc-800/80">
                     {head}
                   </th>
                 ))}
@@ -399,7 +399,7 @@ export default function People() {
                 </tr>
               ) : filtered.map((e) => (
                 <tr key={e.id} className="group hover:bg-[#d4af37]/[0.02] transition-colors">
-                  <td className="px-10 py-6">
+                  <td className="px-4 py-4 md:px-10 md:py-6">
                     <div
                       onClick={() => handleSelect(e.id)}
                       className="flex items-center gap-4 cursor-pointer group/name"
@@ -410,16 +410,16 @@ export default function People() {
                       <span className="text-zinc-200 font-medium tracking-wide group-hover/name:text-[#d4af37] transition-colors">{e.name}</span>
                     </div>
                   </td>
-                  <td className="px-10 py-6">
+                  <td className="px-4 py-4 md:px-10 md:py-6">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{e.role}</span>
                   </td>
-                  <td className="px-10 py-6 text-zinc-500 italic font-light">{e.department}</td>
-                  <td className="px-10 py-6">
+                  <td className="px-4 py-4 md:px-10 md:py-6 text-zinc-500 italic font-light">{e.department}</td>
+                  <td className="px-4 py-4 md:px-10 md:py-6">
                     <span className={`text-[9px] px-3 py-1 rounded-full uppercase tracking-tighter font-bold border ${STATUS_STYLES[e.status]}`}>
                       {e.status}
                     </span>
                   </td>
-                  <td className="px-10 py-6 text-right">
+                  <td className="px-4 py-4 md:px-10 md:py-6 text-right">
                     <button
                       onClick={() => handleSelect(e.id)}
                       className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-zinc-600 hover:text-[#d4af37] transition-all"
@@ -446,14 +446,14 @@ export default function People() {
           <div className="flex flex-col h-full relative">
 
             {/* Header */}
-            <div className="px-8 py-6 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-[#18181b]/50">
+            <div className="px-4 py-4 md:px-8 md:py-6 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-[#18181b]/50">
               <div className="flex items-center gap-4">
                 <button onClick={closePanel} className="text-zinc-500 hover:text-zinc-300 transition-colors p-2 hover:bg-zinc-800/50 rounded-full border border-transparent hover:border-zinc-700">
                   <ArrowRight className="w-5 h-5" />
                 </button>
                 <div className="h-8 w-px bg-zinc-800" />
                 <div>
-                  <h3 className="text-2xl font-light text-zinc-100 truncate">
+                  <h3 className="text-lg md:text-2xl font-light text-zinc-100 truncate">
                     {panelMode === 'edit' ? `Edit ${selected.name}` : selected.name}
                   </h3>
                   <div className="flex items-center gap-2 mt-1.5">
@@ -474,7 +474,7 @@ export default function People() {
 
             {panelMode === 'edit' ? (
               // FORM MODE UI
-              <form onSubmit={handleUpdateEmployee} className="flex-1 overflow-y-auto p-8 flex flex-col">
+              <form onSubmit={handleUpdateEmployee} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 flex-1">
 
                   {/* Work Identity */}
@@ -921,7 +921,7 @@ export default function People() {
                                     <Icon className={`w-4 h-4 ${accent}`} />
                                     <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">{label}</span>
                                   </div>
-                                  <span className="text-2xl font-light text-zinc-100">{value}</span>
+                                  <span className="text-xl md:text-2xl font-light text-zinc-100">{value}</span>
                                 </div>
                               ))}
                             </div>
@@ -951,7 +951,7 @@ export default function People() {
                                 <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-widest">{worklog.summary?.attendance?.totalSessions || 0} Sessions · {worklog.summary?.attendance?.totalBreaks || 0} Breaks</span>
                               </div>
                               <div className="flex items-end gap-2 mb-4">
-                                <span className="text-4xl font-light text-zinc-100 leading-none">{worklog.summary?.attendance?.daysPresent || 0}</span>
+                                <span className="text-3xl md:text-4xl font-light text-zinc-100 leading-none">{worklog.summary?.attendance?.daysPresent || 0}</span>
                                 <span className="text-xs text-zinc-500 pb-1 font-semibold uppercase tracking-widest">/ 22 Days</span>
                               </div>
                               <div className="h-1.5 w-full bg-[#0a0a0a] border border-zinc-800/50 rounded-full overflow-hidden">
@@ -1001,7 +1001,7 @@ export default function People() {
                               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.projects?.length || 0} total</span>
                             </div>
                             {(worklog.projects || []).length === 0 ? (
-                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 md:p-8 text-center">
                                 <FolderKanban className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                                 <p className="text-sm text-zinc-500 italic">Not assigned to any projects.</p>
                               </div>
@@ -1044,7 +1044,7 @@ export default function People() {
                               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.tasks?.length || 0} total</span>
                             </div>
                             {(worklog.tasks || []).length === 0 ? (
-                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 md:p-8 text-center">
                                 <ClipboardList className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                                 <p className="text-sm text-zinc-500 italic">No tasks assigned.</p>
                               </div>
@@ -1093,7 +1093,7 @@ export default function People() {
                               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.attendance?.length || 0} days</span>
                             </div>
                             {(worklog.attendance || []).length === 0 ? (
-                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 md:p-8 text-center">
                                 <Clock className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                                 <p className="text-sm text-zinc-500 italic">No attendance records for this month.</p>
                               </div>
@@ -1196,7 +1196,7 @@ export default function People() {
                               <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">{worklog.auditLogs?.length || 0} events</span>
                             </div>
                             {(worklog.auditLogs || []).length === 0 ? (
-                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                              <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 md:p-8 text-center">
                                 <Shield className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                                 <p className="text-sm text-zinc-500 italic">No audit events recorded.</p>
                               </div>
@@ -1237,7 +1237,7 @@ export default function People() {
 
                         {/* If no worklog data loaded at all */}
                         {!worklog && !loadingWorklog && (
-                          <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-8 text-center">
+                          <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl p-4 md:p-8 text-center">
                             <Activity className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                             <p className="text-sm text-zinc-500 italic">No work log data available.</p>
                           </div>
@@ -1335,7 +1335,7 @@ export default function People() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && selected && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#18181b] w-full max-w-sm border border-red-900/40 shadow-2xl rounded-xl overflow-hidden flex flex-col items-center p-8 text-center">
+          <div className="bg-[#18181b] w-full max-w-sm border border-red-900/40 shadow-2xl rounded-xl overflow-hidden flex flex-col items-center p-6 md:p-8 text-center">
 
             <div className="w-16 h-16 rounded-full bg-red-950/40 border border-red-900/50 flex items-center justify-center mb-6">
               <AlertTriangle className="w-8 h-8 text-red-500" />

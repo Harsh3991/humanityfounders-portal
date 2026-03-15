@@ -8,6 +8,8 @@ const {
     getMyTasks,
     getTasksByUser,
     deleteTask,
+    getOverdueTasks,
+    bulkUpdateTasks,
 } = require("../controllers/taskController");
 const protect = require("../middleware/auth");
 const roleAuth = require("../middleware/roleAuth");
@@ -21,9 +23,13 @@ router.get("/my-tasks", getMyTasks);                          // Any logged-in u
 // ─── Admin: Task Oversight (PRD 5.4) ───
 router.get("/user/:userId", roleAuth("admin"), getTasksByUser); // Admin only
 
+// ─── Admin: All Overdue Tasks ───
+router.get("/overdue", roleAuth("admin"), getOverdueTasks);     // Admin only
+
 // ─── Task CRUD ───
 router.post("/", createTask);                                 // Any project member
 router.get("/project/:projectId", getTasksByProject);         // Any project member
+router.put("/bulk", bulkUpdateTasks);                         // Any logged-in user (bulk update)
 router.get("/:id", getTaskById);                              // Any logged-in user
 router.put("/:id", updateTask);                               // Any logged-in user
 router.delete("/:id", deleteTask);                            // Any logged-in user

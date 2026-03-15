@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axiosInstance from '../lib/axiosInstance';
 import { Clock, CheckCircle, AlertTriangle, FolderOpen, Pause, Play, History, Users, ArrowRight, Loader2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -54,8 +54,17 @@ function getDisplaySeconds(session: TimeSession | null): number {
   return base + Math.floor((Date.now() - session.runStartedAt) / 1000);
 }
 
+const PRIORITY_STYLES: Record<string, string> = {
+  none: 'text-zinc-500 border-zinc-800 bg-[#18181b]/50',
+  low: 'text-zinc-400 border-zinc-700 bg-zinc-800/30',
+  medium: 'text-blue-500 border-blue-800/50 bg-blue-950/20',
+  high: 'text-amber-500 border-amber-700/50 bg-amber-950/20',
+  urgent: 'text-red-400 border-red-800/50 bg-red-950/30',
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [session, setSession] = useState<TimeSession | null>(null);
   const [displayTime, setDisplayTime] = useState(0);
   const [showClockOutModal, setShowClockOutModal] = useState(false);
@@ -67,6 +76,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [totalPresent, setTotalPresent] = useState<number | null>(null);
+  const [allOverdueTasks, setAllOverdueTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [taskFilters, setTaskFilters] = useState({
@@ -83,10 +93,11 @@ export default function Dashboard() {
           axiosInstance.get('/projects').catch(() => null),
           axiosInstance.get('/tasks/my-tasks').catch(() => null),
           axiosInstance.get(`/attendance/history?t=${Date.now()}`).catch(() => null),
-          user?.role === 'admin' ? axiosInstance.get('/attendance/admin/status').catch(() => null) : Promise.resolve(null)
+          user?.role === 'admin' ? axiosInstance.get('/attendance/admin/status').catch(() => null) : Promise.resolve(null),
+          user?.role === 'admin' ? axiosInstance.get('/tasks/overdue').catch(() => null) : Promise.resolve(null),
         ];
 
-        const [todayRes, projRes, taskRes, histRes, statusRes] = await Promise.all(promises);
+        const [todayRes, projRes, taskRes, histRes, statusRes, overdueRes] = await Promise.all(promises);
 
         if (todayRes?.data?.success) {
           const d = todayRes.data.data;
@@ -148,6 +159,10 @@ export default function Dashboard() {
         if (statusRes?.data?.success) {
           const presentCount = statusRes.data.data.filter((u: any) => u.status !== 'absent').length;
           setTotalPresent(presentCount);
+        }
+
+        if (overdueRes?.data?.success) {
+          setAllOverdueTasks(overdueRes.data.data || []);
         }
       } catch (err) {
         console.error("Dashboard fetch error", err);
@@ -407,7 +422,7 @@ export default function Dashboard() {
       {/* Welcome Section */}
       <div className="border-b border-zinc-800/50 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-light text-zinc-100">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-zinc-100">
             Welcome back, <span className="text-[#d4af37] font-medium">{user?.fullName}</span>
           </h1>
           <p className="text-sm text-zinc-500 mt-2 tracking-wide uppercase">{user?.department} Department</p>
@@ -430,7 +445,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         {/* Attendance Timer Card */}
-        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
+        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-4 md:p-6 shadow-md">
           <div className="flex items-center gap-3 mb-6">
             <Clock className="w-5 h-5 text-[#d4af37]" />
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Attendance</h3>
@@ -538,7 +553,7 @@ export default function Dashboard() {
         </Dialog>
 
         {/* Monthly Stats Card */}
-        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
+        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-4 md:p-6 shadow-md">
           <div className="flex items-center gap-3 mb-6">
             <CheckCircle className="w-5 h-5 text-emerald-500" />
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Monthly Stats</h3>
@@ -566,7 +581,7 @@ export default function Dashboard() {
         </div>
 
         {/* Active Projects Card */}
-        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md flex flex-col">
+        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-4 md:p-6 shadow-md flex flex-col">
           <div className="flex items-center gap-3 mb-6">
             <FolderOpen className="w-5 h-5 text-[#d4af37]" />
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Active Projects</h3>
@@ -582,7 +597,7 @@ export default function Dashboard() {
             )}
           </ul>
           {projects.length > 6 && (
-            <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-end mt-auto">
+            <div className="mt-4 pt-4 border-t border-zinc-800/50 flex justify-end">
               <Link
                 to="/projects"
                 className="text-xs font-semibold uppercase tracking-widest text-[#d4af37] hover:text-[#b5952f] transition-colors flex items-center gap-1.5"
@@ -596,7 +611,7 @@ export default function Dashboard() {
 
       {/* Today's Summary (shown after clock out) */}
       {!isClockedIn && todayEntry && (
-        <div className={`bg-[#18181b] border rounded-xl p-6 shadow-md ${todayEntry.attendanceStatus === 'present-full' ? 'border-emerald-700/50' :
+        <div className={`bg-[#18181b] border rounded-xl p-4 md:p-6 shadow-md ${todayEntry.attendanceStatus === 'present-full' ? 'border-emerald-700/50' :
           todayEntry.attendanceStatus === 'present-medium' ? 'border-emerald-800/50' :
             todayEntry.attendanceStatus === 'present-light' ? 'border-emerald-900/50' : 'border-red-900/50'
           }`}>
@@ -632,7 +647,7 @@ export default function Dashboard() {
 
       {/* Attendance History */}
       {recentActivities.length > 0 && (
-        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
+        <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-4 md:p-6 shadow-md">
           <div className="flex items-center gap-3 mb-6">
             <History className="w-5 h-5 text-[#d4af37]" />
             <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">Recent History</h3>
@@ -680,7 +695,7 @@ export default function Dashboard() {
       )}
 
       {/* Tasks */}
-      <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-6 shadow-md">
+      <div className="bg-[#18181b] border border-zinc-800/50 rounded-xl p-4 md:p-6 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-[#d4af37]" />
@@ -750,6 +765,69 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* Admin: All Overdue Tasks */}
+      {user?.role === 'admin' && (
+        <div className="bg-[#18181b] border border-red-900/40 rounded-xl p-4 md:p-6 shadow-md">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <h3 className="text-xs text-zinc-400 uppercase tracking-widest font-semibold">All Overdue Tasks</h3>
+            </div>
+            {allOverdueTasks.length > 0 && (
+              <span className="text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-md border border-red-900/50 text-red-400 bg-red-950/30 font-semibold self-start sm:self-auto">
+                {allOverdueTasks.length} Overdue
+              </span>
+            )}
+          </div>
+          {allOverdueTasks.length === 0 ? (
+            <p className="text-sm text-zinc-500 italic text-center py-6">No overdue tasks — everything is on track.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left min-w-[640px]">
+                <thead>
+                  <tr className="border-b border-zinc-800/80">
+                    <th className="py-3 px-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Task</th>
+                    <th className="py-3 px-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Project</th>
+                    <th className="py-3 px-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Assigned To</th>
+                    <th className="py-3 px-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Priority</th>
+                    <th className="py-3 px-2 text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/40">
+                  {allOverdueTasks.map((t, i) => (
+                    <tr
+                      key={t._id || i}
+                      onClick={() => navigate(`/projects?projectId=${t.project?._id}`)}
+                      className="hover:bg-red-950/10 transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 px-2 text-zinc-200 font-medium max-w-[200px]">
+                        <span className="truncate block">{t.name}</span>
+                      </td>
+                      <td className="py-3 px-2 text-zinc-400 text-xs whitespace-nowrap">{t.project?.name || 'Unassigned'}</td>
+                      <td className="py-3 px-2 text-zinc-400 text-xs">
+                        {(t.assignees || []).map((a: any) => a.fullName).join(', ') || '—'}
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className={`px-2 py-0.5 text-[10px] uppercase tracking-widest rounded-md border font-bold ${PRIORITY_STYLES[t.priority] || PRIORITY_STYLES.none}`}>
+                          {t.priority || 'none'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 font-mono text-xs text-red-400 whitespace-nowrap">
+                        {t.dueDate ? t.dueDate.split('T')[0] : 'No Date'}
+                        {t.deadlineExtended
+                          ? <span className="ml-2 text-[10px] bg-blue-950/40 border border-blue-900/50 text-blue-400 px-1.5 py-0.5 rounded uppercase tracking-wider">Extended</span>
+                          : <span className="ml-2 text-[10px] bg-red-950/40 border border-red-900/50 text-red-400 px-1.5 py-0.5 rounded uppercase tracking-wider">Overdue</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
