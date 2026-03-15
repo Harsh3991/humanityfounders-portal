@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axiosInstance from '../lib/axiosInstance';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Loader2, CheckCircle2, Flag, Ban, Calendar, Pencil, Clock } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Folder, FolderOpen, Trash2, User, Users, Loader2, CheckCircle2, Flag, Ban, Calendar, Pencil, Clock, X } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -176,6 +177,8 @@ const TaskInputRow = ({
     <div
       className={`flex items-start py-3 px-3 bg-[#d4af37]/[0.03] border-b border-zinc-800/40 last:border-0 ring-1 ring-[#d4af37]/20 ${showAssignPopover ? 'relative z-50' : ''}`}
     >
+      {/* Checkbox placeholder — keeps column alignment with task rows */}
+      <div className="w-5 h-5 shrink-0 mr-0.5" />
       <div style={{ width: `calc(${level * 1.5}rem + 12px)` }} className="shrink-0" />
       {/* Status placeholder */}
       <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5">
@@ -373,7 +376,10 @@ const TaskRow = ({
   onDragStartReorder,
   onDragOverReorder,
   onDropReorder,
-  onDragEndReorder
+  onDragEndReorder,
+  isSelected = false,
+  onToggleSelect,
+  getIsSelected,
 }: {
   task: Task,
   level?: number,
@@ -390,7 +396,10 @@ const TaskRow = ({
   onDragStartReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
   onDragOverReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
   onDropReorder: (e: React.DragEvent, taskId: string, parentId: string | null) => void,
-  onDragEndReorder: (e: React.DragEvent) => void
+  onDragEndReorder: (e: React.DragEvent) => void,
+  isSelected?: boolean,
+  onToggleSelect?: (taskId: string) => void,
+  getIsSelected?: (taskId: string) => boolean,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [showAssignPopover, setShowAssignPopover] = useState(false);
@@ -470,6 +479,17 @@ const TaskRow = ({
         onDragEnd={onDragEndReorder}
         className="flex items-start group py-3 px-3 hover:bg-zinc-800/20 transition-colors border-b border-zinc-800/40 last:border-0 cursor-grab active:cursor-grabbing"
       >
+        {/* Selection checkbox — hidden until row is hovered or already checked */}
+        <div className="w-5 flex items-center justify-center shrink-0 mr-0.5 mt-0.5 self-start">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect?.(task.id)}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-3.5 h-3.5 accent-[#d4af37] cursor-pointer transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            aria-label={`Select task: ${task.name}`}
+          />
+        </div>
         <div style={{ width: `calc(${level * 1.5}rem + 12px)` }} className="shrink-0" />
         <div className="relative mr-1.5 flex items-center justify-center shrink-0 mt-0.5" ref={statusRef}>
           <button
@@ -721,6 +741,9 @@ const TaskRow = ({
               onDragOverReorder={onDragOverReorder}
               onDropReorder={onDropReorder}
               onDragEndReorder={onDragEndReorder}
+              isSelected={getIsSelected?.(sub.id) ?? false}
+              onToggleSelect={onToggleSelect}
+              getIsSelected={getIsSelected}
             />
           ))}
           {isAddingMode && (
@@ -740,8 +763,273 @@ const TaskRow = ({
   );
 }
 
+// ─────────────────────────────────────────────────
+// BulkActionBar — floating bar shown when tasks are selected
+// ─────────────────────────────────────────────────
+const BulkActionBar = ({
+  count,
+  employees,
+  onBulkAssign,
+  onBulkStatus,
+  onBulkPriority,
+  onBulkDueDate,
+  onClearSelection,
+  isPending,
+}: {
+  count: number;
+  employees: { id: string; name: string }[];
+  onBulkAssign: (userIds: string[]) => void;
+  onBulkStatus: (status: string) => void;
+  onBulkPriority: (priority: string) => void;
+  onBulkDueDate: (dueDate: string) => void;
+  onClearSelection: () => void;
+  isPending: boolean;
+}) => {
+  const [activePanel, setActivePanel] = useState<null | 'assign' | 'status' | 'priority'>(null);
+  const [assignSearch, setAssignSearch] = useState('');
+  const [bulkAssignees, setBulkAssignees] = useState<string[]>([]);
+  const bulkDueDateRef = useRef<HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activePanel) return;
+    const handler = (e: MouseEvent) => {
+      if (barRef.current && !barRef.current.contains(e.target as Node)) {
+        setActivePanel(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [activePanel]);
+
+  const handleAssignApply = () => {
+    if (bulkAssignees.length > 0) {
+      onBulkAssign(bulkAssignees);
+      setBulkAssignees([]);
+      setAssignSearch('');
+    }
+    setActivePanel(null);
+  };
+
+  const filteredEmp = employees.filter(e =>
+    e.name.toLowerCase().includes(assignSearch.toLowerCase())
+  );
+
+  // Shared button style — highlighted when its panel is active
+  const actionBtn = (panel: 'assign' | 'status' | 'priority') =>
+    `flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+      activePanel === panel
+        ? 'bg-zinc-700/80 text-zinc-100 ring-1 ring-zinc-600'
+        : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+    }`;
+
+  const plainBtn = `flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all duration-150 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed`;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-4 px-4 pointer-events-none">
+      <div
+        ref={barRef}
+        className="pointer-events-auto w-full max-w-2xl bg-[#1c1c1f] border border-zinc-700/80 shadow-[0_8px_32px_rgba(0,0,0,0.5)] rounded-2xl relative overflow-visible"
+      >
+        {/* Thin gold top accent line */}
+        <div className="absolute top-0 left-6 right-6 h-px bg-gradient-to-r from-transparent via-[#d4af37]/40 to-transparent rounded-full" />
+
+        <div className="flex items-center h-14 px-4 gap-1 overflow-x-auto scrollbar-hide">
+
+          {/* ── Count pill ── */}
+          <div className="flex items-center gap-1.5 bg-[#d4af37]/10 border border-[#d4af37]/25 text-[#d4af37] px-3 py-1.5 rounded-lg shrink-0">
+            <span className="text-xs font-bold tracking-wider">{count}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest opacity-80">
+              {count === 1 ? 'task' : 'tasks'}
+            </span>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-5 bg-zinc-700 shrink-0 mx-2" />
+
+          {/* ── Assign ── */}
+          <div className="relative shrink-0">
+            <button
+              disabled={isPending}
+              onClick={() => setActivePanel(activePanel === 'assign' ? null : 'assign')}
+              className={actionBtn('assign')}
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>Assign</span>
+            </button>
+            {activePanel === 'assign' && (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 w-56 bg-[#18181b] border border-zinc-700 shadow-2xl rounded-xl overflow-hidden z-[200] flex flex-col">
+                <div className="px-3 pt-3 pb-2 border-b border-zinc-800">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold mb-2">Add to all selected</p>
+                  <input
+                    type="text"
+                    placeholder="Search employee..."
+                    className="w-full h-8 px-3 text-xs bg-[#0a0a0a] text-zinc-200 border border-zinc-800 rounded-lg focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]"
+                    value={assignSearch}
+                    onChange={e => setAssignSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-40 overflow-y-auto p-1.5 flex flex-col gap-0.5">
+                  {filteredEmp.length === 0 ? (
+                    <p className="text-xs text-zinc-500 p-3 text-center italic">No employees found.</p>
+                  ) : filteredEmp.map(emp => (
+                    <button
+                      key={emp.id}
+                      onClick={() => setBulkAssignees(prev =>
+                        prev.includes(emp.id) ? prev.filter(id => id !== emp.id) : [...prev, emp.id]
+                      )}
+                      className="flex items-center justify-between px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-lg transition-colors w-full text-left"
+                    >
+                      <span>{emp.name}</span>
+                      {bulkAssignees.includes(emp.id) && <CheckCircle2 className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="p-2 border-t border-zinc-800 flex gap-2">
+                  <button
+                    onClick={handleAssignApply}
+                    disabled={bulkAssignees.length === 0}
+                    className="flex-1 py-1.5 text-[10px] uppercase tracking-widest font-bold bg-[#d4af37] text-black hover:bg-[#b5952f] transition-colors rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Apply ({bulkAssignees.length})
+                  </button>
+                  <button
+                    onClick={() => { setActivePanel(null); setBulkAssignees([]); setAssignSearch(''); }}
+                    className="px-2.5 py-1.5 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+                  >✕</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Status ── */}
+          <div className="relative shrink-0">
+            <button
+              disabled={isPending}
+              onClick={() => setActivePanel(activePanel === 'status' ? null : 'status')}
+              className={actionBtn('status')}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Status</span>
+            </button>
+            {activePanel === 'status' && (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 w-40 bg-[#18181b] border border-zinc-700 shadow-2xl rounded-xl overflow-hidden z-[200] flex flex-col p-1.5 gap-0.5">
+                <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold px-3 py-1.5">Set status</p>
+                {([
+                  { value: 'todo', label: 'To Do', icon: <div className="w-3 h-3 rounded-full border-2 border-zinc-500 border-dotted shrink-0" /> },
+                  { value: 'in-progress', label: 'In Progress', icon: <div className="w-3 h-3 rounded-full border-2 border-[#d4af37] bg-[#d4af37]/20 shrink-0" /> },
+                  { value: 'done', label: 'Done', icon: <CheckCircle2 className="w-3.5 h-3.5 text-white fill-emerald-500 shrink-0" /> },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { onBulkStatus(opt.value); setActivePanel(null); }}
+                    className="flex items-center gap-2.5 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-lg transition-colors"
+                  >
+                    {opt.icon} {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Priority ── */}
+          <div className="relative shrink-0">
+            <button
+              disabled={isPending}
+              onClick={() => setActivePanel(activePanel === 'priority' ? null : 'priority')}
+              className={actionBtn('priority')}
+            >
+              <Flag className="w-3.5 h-3.5 shrink-0" />
+              <span>Priority</span>
+            </button>
+            {activePanel === 'priority' && (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 w-36 bg-[#18181b] border border-zinc-700 shadow-2xl rounded-xl overflow-hidden z-[200] flex flex-col p-1.5 gap-0.5">
+                <p className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold px-3 py-1.5">Set priority</p>
+                {([
+                  { value: 'urgent', label: 'Urgent', cls: 'text-red-500 fill-red-500/20' },
+                  { value: 'high', label: 'High', cls: 'text-amber-500 fill-amber-500/20' },
+                  { value: 'medium', label: 'Normal', cls: 'text-blue-500 fill-blue-500/20' },
+                  { value: 'low', label: 'Low', cls: 'text-zinc-500 fill-zinc-500/20' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { onBulkPriority(opt.value); setActivePanel(null); }}
+                    className="flex items-center gap-2.5 text-left px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded-lg transition-colors"
+                  >
+                    <Flag className={`w-3.5 h-3.5 shrink-0 ${opt.cls}`} /> {opt.label}
+                  </button>
+                ))}
+                <div className="border-t border-zinc-800/80 my-0.5 mx-2" />
+                <button
+                  onClick={() => { onBulkPriority('none'); setActivePanel(null); }}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-[10px] uppercase tracking-widest text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 rounded-lg transition-colors font-semibold"
+                >
+                  <Ban className="w-3.5 h-3.5 shrink-0" /> Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Due Date ── */}
+          <div className="relative shrink-0">
+            <button
+              disabled={isPending}
+              onClick={() => {
+                try {
+                  if (bulkDueDateRef.current && 'showPicker' in HTMLInputElement.prototype) {
+                    (bulkDueDateRef.current as HTMLInputElement).showPicker();
+                  } else {
+                    bulkDueDateRef.current?.focus();
+                  }
+                } catch (_) {}
+              }}
+              className={plainBtn}
+            >
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>Due Date</span>
+            </button>
+            <input
+              type="date"
+              ref={bulkDueDateRef}
+              onChange={(e) => {
+                if (e.target.value) {
+                  onBulkDueDate(e.target.value);
+                  e.target.value = '';
+                }
+              }}
+              className="absolute opacity-0 w-px h-px overflow-hidden pointer-events-none"
+              style={{ bottom: '100%', left: 0 }}
+            />
+          </div>
+
+          {/* Right side — spinner + X */}
+          <div className="ml-auto flex items-center gap-1 shrink-0 pl-2">
+            {isPending && (
+              <div className="flex items-center gap-2 px-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#d4af37]" />
+                <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold hidden sm:inline">Updating…</span>
+              </div>
+            )}
+            <div className="w-px h-4 bg-zinc-700 shrink-0 mx-1" />
+            <button
+              onClick={onClearSelection}
+              className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors"
+              title="Clear selection (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Projects() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [employees, setEmployees] = useState<{ id: string, name: string }[]>([]);
@@ -756,6 +1044,10 @@ export default function Projects() {
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [taskToDeleteId, setTaskToDeleteId] = useState<string | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+
+  // ── Bulk selection ──
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isBulkPending, setIsBulkPending] = useState(false);
 
   const [taskFilters, setTaskFilters] = useState({
     status: 'all',
@@ -856,8 +1148,13 @@ export default function Projects() {
       }));
       setProjects(basicProjects);
 
-      if (projectsData.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projectsData[0]._id);
+      if (projectsData.length > 0) {
+        const paramProjectId = searchParams.get('projectId');
+        if (paramProjectId && projectsData.some((p: any) => p._id === paramProjectId)) {
+          setSelectedProjectId(paramProjectId);
+        } else if (!selectedProjectId) {
+          setSelectedProjectId(projectsData[0]._id);
+        }
       }
     } catch (e) {
       console.error("Failed to load projects", e);
@@ -1151,7 +1448,87 @@ export default function Projects() {
     } catch (e) { fetchProjects(); }
   };
 
+  // ─────────────────────────────────────────────────
+  // Bulk selection helpers
+  // ─────────────────────────────────────────────────
+  const handleToggleSelectTask = (taskId: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (filteredList: Task[]) => {
+    const allSelected = filteredList.length > 0 && filteredList.every(t => selectedTaskIds.has(t.id));
+    setSelectedTaskIds(allSelected ? new Set() : new Set(filteredList.map(t => t.id)));
+  };
+
+  const handleBulkUpdate = async (updates: {
+    assigneesToAdd?: string[];
+    status?: string;
+    priority?: string;
+    dueDate?: string | null;
+    deadlineExtended?: boolean;
+  }) => {
+    const taskIds = Array.from(selectedTaskIds);
+    if (taskIds.length === 0) return;
+    setIsBulkPending(true);
+    try {
+      await axiosInstance.put('/tasks/bulk', { taskIds, updates });
+
+      if (updates.status !== undefined) {
+        for (const id of taskIds) updateLocalTask(id, { status: updates.status });
+      }
+      if (updates.priority !== undefined) {
+        for (const id of taskIds) updateLocalTask(id, { priority: updates.priority });
+      }
+      if (updates.dueDate !== undefined) {
+        for (const id of taskIds) updateLocalTask(id, { dueDate: updates.dueDate });
+      }
+      if (updates.deadlineExtended !== undefined) {
+        for (const id of taskIds) updateLocalTask(id, { deadlineExtended: updates.deadlineExtended });
+      }
+      if (updates.assigneesToAdd && updates.assigneesToAdd.length > 0) {
+        const newEmps = updates.assigneesToAdd
+          .map(id => employees.find(e => e.id === id))
+          .filter(Boolean) as { id: string; name: string }[];
+        const taskIdSet = new Set(taskIds);
+        setProjects(prevProjects => {
+          const cloned = JSON.parse(JSON.stringify(prevProjects));
+          const addAssignees = (tasks: Task[]) => {
+            for (const task of tasks) {
+              if (taskIdSet.has(task.id)) {
+                for (const emp of newEmps) {
+                  if (!task.assignees.some((a: any) => a.id === emp.id)) {
+                    task.assignees.push(emp);
+                  }
+                }
+              }
+              if (task.subtasks) addAssignees(task.subtasks);
+            }
+          };
+          for (const p of cloned) addAssignees(p.tasks);
+          return cloned;
+        });
+      }
+
+      setSelectedTaskIds(new Set());
+    } catch (e) {
+      console.error('Bulk update failed', e);
+      fetchProjects();
+    } finally {
+      setIsBulkPending(false);
+    }
+  };
+
   const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+  // Clear selection when the active project changes
+  useEffect(() => {
+    setSelectedTaskIds(new Set());
+  }, [selectedProjectId]);
 
   const filterTopLevelTasks = (tasks: Task[], filters: typeof taskFilters): Task[] => {
     return tasks.filter(t => {
@@ -1193,7 +1570,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col md:flex-row bg-[#0a0a0a] rounded-xl border border-zinc-800/50 overflow-hidden font-sans">
+    <div className="flex flex-col md:flex-row md:h-[calc(100vh-8rem)] bg-[#0a0a0a] rounded-xl border border-zinc-800/50 overflow-hidden font-sans">
 
       {/* Sidebar - Project List */}
       <div className="w-full md:w-72 border-b md:border-b-0 md:border-r border-zinc-800/50 bg-[#18181b] shrink-0 flex flex-col pt-6 max-h-[300px] md:max-h-none overflow-y-auto">
@@ -1235,10 +1612,10 @@ export default function Projects() {
         {selectedProject ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="px-8 py-6 border-b border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#18181b]/30">
+            <div className="px-4 py-4 md:px-8 md:py-6 border-b border-zinc-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#18181b]/30">
               <div className="flex items-center gap-4">
                 <div className="w-3 h-8 rounded-sm shrink-0" style={{ backgroundColor: selectedProject.color }} />
-                <h1 className="text-3xl text-zinc-100 font-light truncate">{selectedProject.name}</h1>
+                <h1 className="text-xl md:text-3xl text-zinc-100 font-light truncate">{selectedProject.name}</h1>
               </div>
               <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
                 <select
@@ -1297,10 +1674,27 @@ export default function Projects() {
             </div>
 
             {/* Task List */}
-            <div className="flex-1 overflow-y-auto p-8 pb-48">
-              <div className="border border-zinc-800/60 rounded-xl bg-[#18181b] shadow-xl flex flex-col pb-8">
+            <div className="flex-1 overflow-y-auto overflow-x-auto p-3 md:p-8 pb-48">
+              <div className="border border-zinc-800/60 rounded-xl bg-[#18181b] shadow-xl flex flex-col pb-8 min-w-[780px]">
                 {/* List Header */}
                 <div className="flex bg-[#0a0a0a]/50 px-3 py-3 border-b border-zinc-800/60 rounded-t-xl text-[10px] uppercase tracking-widest text-zinc-500 font-semibold shrink-0">
+                  {/* Master checkbox */}
+                  <div className="w-5 flex items-center justify-center shrink-0 mr-0.5">
+                    <input
+                      type="checkbox"
+                      checked={filteredTasks.length > 0 && filteredTasks.every(t => selectedTaskIds.has(t.id))}
+                      ref={(el: HTMLInputElement | null) => {
+                        if (el) {
+                          el.indeterminate =
+                            selectedTaskIds.size > 0 &&
+                            !filteredTasks.every(t => selectedTaskIds.has(t.id));
+                        }
+                      }}
+                      onChange={() => handleSelectAll(filteredTasks)}
+                      className="w-3.5 h-3.5 accent-[#d4af37] cursor-pointer"
+                      aria-label="Select all visible tasks"
+                    />
+                  </div>
                   <div style={{ width: '12px' }} className="shrink-0" />
                   <div className="w-5 mr-1.5 shrink-0" /> {/* Status */}
                   <div className="w-5 mr-3 shrink-0" /> {/* Chevron */}
@@ -1344,6 +1738,9 @@ export default function Projects() {
                           onDragOverReorder={handleDragOverReorder}
                           onDropReorder={handleDropReorder}
                           onDragEndReorder={handleDragEndReorder}
+                          isSelected={selectedTaskIds.has(t.id)}
+                          onToggleSelect={handleToggleSelectTask}
+                          getIsSelected={(id) => selectedTaskIds.has(id)}
                         />
                       ))}
                       {isAddingRootTask && (
@@ -1371,6 +1768,20 @@ export default function Projects() {
           </div>
         )}
       </div>
+
+      {/* Bulk Action Bar — shown when tasks are selected */}
+      {selectedTaskIds.size > 0 && (
+        <BulkActionBar
+          count={selectedTaskIds.size}
+          employees={employees}
+          isPending={isBulkPending}
+          onClearSelection={() => setSelectedTaskIds(new Set())}
+          onBulkAssign={(userIds) => handleBulkUpdate({ assigneesToAdd: userIds })}
+          onBulkStatus={(status) => handleBulkUpdate({ status })}
+          onBulkPriority={(priority) => handleBulkUpdate({ priority })}
+          onBulkDueDate={(dueDate) => handleBulkUpdate({ dueDate })}
+        />
+      )}
 
       {/* Delete Project Confirmation Modal */}
       {projectToDelete && (

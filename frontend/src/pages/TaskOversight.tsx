@@ -114,7 +114,7 @@ export default function TaskOversight() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col md:flex-row bg-[#0a0a0a] rounded-xl border border-zinc-800/50 overflow-hidden font-sans shadow-2xl">
+    <div className="flex flex-col md:flex-row md:h-[calc(100vh-8rem)] bg-[#0a0a0a] rounded-xl border border-zinc-800/50 overflow-hidden font-sans shadow-2xl">
 
       {/* Left Panel: Employee Directory */}
       <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-zinc-800/50 bg-[#18181b] shrink-0 flex flex-col max-h-[400px] md:max-h-none overflow-hidden">
@@ -161,8 +161,8 @@ export default function TaskOversight() {
         {selectedEmployee ? (
           <>
             {/* Header */}
-            <div className="px-8 py-6 border-b border-zinc-800/50 bg-[#18181b]/30 shrink-0">
-              <h1 className="text-3xl text-zinc-100 font-light truncate">
+            <div className="px-4 py-4 md:px-8 md:py-6 border-b border-zinc-800/50 bg-[#18181b]/30 shrink-0">
+              <h1 className="text-xl md:text-3xl text-zinc-100 font-light truncate">
                 {selectedEmployee.name}
               </h1>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
@@ -216,7 +216,7 @@ export default function TaskOversight() {
             </div>
 
             {/* Tasks Grid */}
-            <div className="flex-1 overflow-y-auto p-8 bg-[#0a0a0a] relative">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#0a0a0a] relative">
               {tasksLoading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a]/80 z-10 backdrop-blur-sm">
                   <Loader2 className="w-8 h-8 animate-spin text-[#d4af37]" />

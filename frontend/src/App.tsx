@@ -11,6 +11,8 @@ import Projects from "./pages/Projects";
 import Attendance from "./pages/Attendance";
 import TaskOversight from "./pages/TaskOversight";
 import People from "./pages/People";
+import Leaves from "./pages/Leaves";
+import LeaveManagement from "./pages/LeaveManagement";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +36,8 @@ function AppRoutes() {
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/task-oversight" element={user.role === 'admin' ? <TaskOversight /> : <Navigate to="/dashboard" />} />
           <Route path="/people" element={user.role === 'admin' ? <People /> : <Navigate to="/dashboard" />} />
+          <Route path="/leaves" element={<Leaves />} />
+          <Route path="/leave-management" element={user.role === 'admin' || user.role === 'hr' ? <LeaveManagement /> : <Navigate to="/dashboard" />} />
         </Route>
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<NotFound />} />
